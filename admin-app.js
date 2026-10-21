@@ -143,7 +143,7 @@ async function closeAudit(id) {
     try {
         const response = await fetch(apiPath("audits/" + id + "/close"), {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            // Без Content-Type: application/json — «простой» запрос (обход preflight CORS).
             redirect: "follow"
         });
         const res = await response.json();
@@ -165,7 +165,7 @@ async function reopenAudit(id) {
     try {
         const response = await fetch(apiPath("audits/" + id + "/reopen"), {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            // Без Content-Type: application/json — «простой» запрос (обход preflight CORS).
             redirect: "follow"
         });
         const res = await response.json();
@@ -185,9 +185,10 @@ async function reopenAudit(id) {
 async function deleteAudit(id) {
     if (!confirm("Удалить предписание навсегда? Это действие необратимо.")) return;
     try {
-        const response = await fetch(apiPath("audits/" + id), {
-            method: "DELETE",
-            headers: { "Content-Type": "application/json" },
+        // DELETE заменён на POST ?method=DELETE — «простой» запрос без preflight OPTIONS
+        // (Yandex Cloud Functions не передаёт OPTIONS в код функции, CORS на платформе выключен).
+        const response = await fetch(apiPath("audits/" + id) + "&method=DELETE", {
+            method: "POST",
             redirect: "follow"
         });
         const res = await response.json();
