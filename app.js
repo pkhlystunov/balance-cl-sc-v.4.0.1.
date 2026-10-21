@@ -49,6 +49,20 @@ if ("serviceWorker" in navigator) {
 window.addEventListener("online", updateNetworkStatus);
 window.addEventListener("offline", updateNetworkStatus);
 
+// Периодическая синхронизация буфера: событие online на мобильных
+// браузерах срабатывает ненадёжно, поэтому дополнительно проверяем
+// буфер каждые 30 секунд, пока приложение открыто.
+const SYNC_INTERVAL_MS = 30000;
+let syncTimer = null;
+function startPeriodicSync() {
+  if (syncTimer) clearInterval(syncTimer);
+  syncTimer = setInterval(function () {
+    if (navigator.onLine) {
+      syncOfflineQueue();
+    }
+  }, SYNC_INTERVAL_MS);
+}
+
 function updateNetworkStatus() {
   const indicator = document.getElementById("net-indicator");
   if (navigator.onLine) {
@@ -71,16 +85,46 @@ async function loadSetupData() {
     if (res.success) {
       localStorage.setItem("cached_setup", JSON.stringify(res));
       populateSelects(res);
+    } else {
+      // Сервер ответил ошибкой — используем ранее загруженные данные
+      const cached = localStorage.getItem("cached_setup");
+      if (cached) populateSelects(JSON.parse(cached));
     }
   } catch (e) {
+    // Сеть недоступна — используем ранее загруженные данные
     const cached = localStorage.getItem("cached_setup");
     if (cached) populateSelects(JSON.parse(cached));
   }
 }
 
-// Кнопка «Обновить» — перезагрузка справочников и чек-листа
-async function refreshData() {
+// Кнопка «Обновить» — перезагрузка справочников и чек-листа.
+// При длительном нажатии (или при изменении версии приложения) сбрасывает
+// кеш старой версии, чтобы загрузить актуальные файлы.
+let refreshForceMode = false;
+
+async function refreshData(force) {
   const btn = document.getElementById("refresh-btn");
+  let hard = force === true || refreshForceMode;
+  refreshForceMode = false;
+
+  if (hard) {
+    // Принудительный сброс кеша: очищаем кеши service worker и перезагружаем страницу.
+    try {
+      if (window.caches && caches.keys) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map(function (k) { return caches.delete(k); }));
+      }
+      if (navigator.serviceWorker) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map(function (r) { return r.unregister(); }));
+      }
+    } catch (e) {
+      console.error("Ошибка при сбросе кеша:", e);
+    }
+    location.reload();
+    return;
+  }
+
   if (btn) {
     btn.disabled = true;
     btn.textContent = "⏳ Обновление...";
@@ -97,6 +141,10 @@ async function refreshData() {
       if (result.success) {
         localStorage.setItem("cached_checklist", JSON.stringify(result.data));
         renderGroupedChecklist(result.data);
+      } else {
+        // Сервер ответил ошибкой — используем ранее загруженные вопросы
+        const cachedQuestions = localStorage.getItem("cached_checklist");
+        if (cachedQuestions) renderGroupedChecklist(JSON.parse(cachedQuestions));
       }
     } catch (e) {
       const cachedQuestions = localStorage.getItem("cached_checklist");
@@ -109,10 +157,35 @@ async function refreshData() {
   }
 }
 
+// Долгое нажатие на кнопку «Обновить» включает режим принудительного сброса кеша
+function setupRefreshLongPress() {
+  const btn = document.getElementById("refresh-btn");
+  if (!btn) return;
+  let longPressTimer = null;
+  btn.addEventListener("pointerdown", function () {
+    longPressTimer = setTimeout(function () {
+      refreshForceMode = true;
+      btn.textContent = "♻️ Сброс кеша...";
+    }, 800);
+  });
+  btn.addEventListener("pointerup", function () {
+    clearTimeout(longPressTimer);
+  });
+  btn.addEventListener("pointerleave", function () {
+    clearTimeout(longPressTimer);
+  });
+}
+
 document.addEventListener("DOMContentLoaded", async function () {
   // Переносим старый буфер из localStorage в IndexedDB (если он был)
   await migrateLegacyOfflineQueue();
   updateNetworkStatus();
+  // Проверяем буфер при старте приложения (вдруг сеть уже есть)
+  if (navigator.onLine) {
+    syncOfflineQueue();
+  }
+  startPeriodicSync();
+  setupRefreshLongPress();
   await loadSetupData();
 });
 
@@ -201,10 +274,23 @@ async function startFullAudit() {
     if (result.success) {
       localStorage.setItem("cached_checklist", JSON.stringify(result.data));
       renderGroupedChecklist(result.data);
+    } else {
+      // Сервер ответил ошибкой — используем ранее загруженные вопросы
+      const cachedQuestions = localStorage.getItem("cached_checklist");
+      if (cachedQuestions) {
+        renderGroupedChecklist(JSON.parse(cachedQuestions));
+      } else {
+        container.innerHTML = "⚠️ Нет сети и нет сохранённых вопросов. Подключитесь к интернету и нажмите «Обновить».";
+      }
     }
   } catch (e) {
+    // Сеть недоступна — используем ранее загруженные вопросы
     const cachedQuestions = localStorage.getItem("cached_checklist");
-    if (cachedQuestions) renderGroupedChecklist(JSON.parse(cachedQuestions));
+    if (cachedQuestions) {
+      renderGroupedChecklist(JSON.parse(cachedQuestions));
+    } else {
+      container.innerHTML = "⚠️ Нет сети и нет сохранённых вопросов. Подключитесь к интернету и нажмите «Обновить».";
+    }
   }
 }
 
