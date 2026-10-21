@@ -135,7 +135,8 @@ async function addNewContractor() {
   try {
     const response = await fetch(apiPath("contractors"), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      // Без Content-Type: application/json — это «простой» запрос,
+      // браузер не шлёт preflight OPTIONS (обход CORS на стороне YC).
       redirect: "follow",
       body: JSON.stringify({ name: name }),
     });
@@ -451,8 +452,9 @@ async function submitAuditWithOffline() {
         apiPath("audits"),
         {
           method: "POST",
+          // Без Content-Type: application/json — «простой» запрос,
+          // браузер не шлёт preflight OPTIONS (обход CORS на стороне YC).
           body: JSON.stringify(auditSession),
-          headers: { "Content-Type": "application/json" },
         },
         60000,
       );
@@ -491,8 +493,8 @@ async function syncOfflineQueue() {
       }
       await fetch(apiPath("audits"), {
         method: "POST",
+        // Без Content-Type: application/json — «простой» запрос (обход preflight CORS).
         body: JSON.stringify(queue[i]),
-        headers: { "Content-Type": "application/json" },
       });
     } catch (e) {
       return;
