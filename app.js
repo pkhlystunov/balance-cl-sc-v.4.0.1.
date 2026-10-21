@@ -455,7 +455,7 @@ async function submitAuditWithOffline() {
   if (navigator.onLine) {
     btn.innerText = "⏳ Отправка...";
     try {
-      // Таймаут 12 сек: если сервер не ответил — считаем сеть недоступной
+      // Таймаут 15 сек: если сервер не ответил — считаем сеть недоступной
       // и сохраняем акт в буфер (повторная выгрузка при появлении сети).
       const response = await fetchWithTimeout(
         apiPath("audits"),
@@ -465,7 +465,7 @@ async function submitAuditWithOffline() {
           // браузер не шлёт preflight OPTIONS (обход CORS на стороне YC).
           body: JSON.stringify(auditSession),
         },
-        60000,
+        15000,
       );
       if (!response.ok) throw new Error("HTTP " + response.status);
       btn.innerText = "Акт сохранен!";
@@ -474,6 +474,7 @@ async function submitAuditWithOffline() {
     } catch (e) {
       // Логируем причину (таймаут/CORS/сеть), чтобы было видно в консоли.
       console.error("Ошибка отправки акта в облако:", e);
+      // Гарантированное сохранение в память телефона при любой ошибке связи.
       saveToOfflineQueue(auditSession);
     }
   } else {
@@ -482,33 +483,86 @@ async function submitAuditWithOffline() {
 }
 
 function saveToOfflineQueue(session) {
-  const queue = JSON.parse(localStorage.getItem("offline_audit_queue") || "[]");
-  queue.push(session);
-  localStorage.setItem("offline_audit_queue", JSON.stringify(queue));
-  document.getElementById("submit-btn").innerText = "💾 Офлайн-сохранено!";
-  document.getElementById("pdf-btn").disabled = false;
-  alert("⚠️ Данные сохранены в буфер телефона.");
+  try {
+    const queue = JSON.parse(localStorage.getItem("offline_audit_queue") || "[]");
+    // Не дублируем акт с тем же auditId (идемпотентность на backend)
+    if (!queue.some(function (q) { return q.auditId === session.auditId; })) {
+      queue.push(session);
+    }
+    localStorage.setItem("offline_audit_queue", JSON.stringify(queue));
+    document.getElementById("submit-btn").innerText = "💾 Офлайн-сохранено!";
+    document.getElementById("pdf-btn").disabled = false;
+    alert("⚠️ Данные сохранены в буфер телефона.");
+    return true;
+  } catch (e) {
+    // localStorage переполнен или недоступен — данные в память не сохранить.
+    console.error("Не удалось сохранить акт в буфер телефона:", e);
+    alert(
+      "⚠️ Не удалось сохранить акт в память телефона (память переполнена).\n" +
+        "Скачайте акт сейчас, чтобы не потерять данные.",
+    );
+    document.getElementById("pdf-btn").disabled = false;
+    return false;
+  }
+}
+
+// Удаление конкретного акта из буфера (после успешной отправки в облако)
+function removeFromOfflineQueue(auditId) {
+  try {
+    const queue = JSON.parse(localStorage.getItem("offline_audit_queue") || "[]");
+    const remaining = queue.filter(function (q) {
+      return q.auditId !== auditId;
+    });
+    localStorage.setItem("offline_audit_queue", JSON.stringify(remaining));
+  } catch (e) {
+    console.error("Не удалось обновить буфер:", e);
+  }
 }
 
 async function syncOfflineQueue() {
   const queue = JSON.parse(localStorage.getItem("offline_audit_queue") || "[]");
   if (queue.length === 0) return;
+  let synced = 0;
+  const remaining = [];
   for (let i = 0; i < queue.length; i++) {
+    const item = queue[i];
+    // Убеждаемся, что у офлайн-акта есть auditId (UUID v4)
+    if (!item.auditId) {
+      item.auditId = generateUuid();
+    }
     try {
-      // Убеждаемся, что у офлайн-акта есть auditId (UUID v4)
-      if (!queue[i].auditId) {
-        queue[i].auditId = generateUuid();
+      const response = await fetchWithTimeout(
+        apiPath("audits"),
+        {
+          method: "POST",
+          // Без Content-Type: application/json — «простой» запрос (обход preflight CORS).
+          body: JSON.stringify(item),
+        },
+        15000,
+      );
+      if (response.ok) {
+        synced++;
+      } else {
+        remaining.push(item);
       }
-      await fetch(apiPath("audits"), {
-        method: "POST",
-        // Без Content-Type: application/json — «простой» запрос (обход preflight CORS).
-        body: JSON.stringify(queue[i]),
-      });
     } catch (e) {
-      return;
+      // Сеть снова пропала — останавливаемся, остальное отправим позже.
+      remaining.push(item);
+      break;
     }
   }
-  localStorage.removeItem("offline_audit_queue");
+  try {
+    localStorage.setItem("offline_audit_queue", JSON.stringify(remaining));
+  } catch (e) {
+    console.error("Не удалось обновить буфер:", e);
+  }
+  if (synced > 0) {
+    alert(
+      "✅ Связь восстановлена. Отправлено в реестр из буфера: " +
+        synced +
+        " акт(ов).",
+    );
+  }
 }
 
 function downloadChecklistPdf() {
@@ -629,12 +683,47 @@ function downloadChecklistPdf() {
     }
   }
 
-  window.print();
+  // Стабильная печать: ждём полной загрузки всех фото (base64-изображения
+  // могут быть большими), затем открываем печать. Если печать недоступна —
+  // показываем понятное сообщение, данные при этом не теряются.
+  const pdfImages = Array.prototype.slice.call(
+    document.querySelectorAll(".pdf-photo-img"),
+  );
+  const btn = document.getElementById("pdf-btn");
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "⏳ Подготовка акта...";
+  }
 
-  setTimeout(function () {
-    if (confirm("Выгрузка завершена! Очистить чек-лист для нового обхода?"))
-      location.reload();
-  }, 1000);
+  Promise.all(
+    pdfImages.map(function (img) {
+      return new Promise(function (resolve) {
+        if (img.complete && img.naturalWidth > 0) return resolve();
+        img.addEventListener("load", resolve);
+        img.addEventListener("error", resolve);
+        // Страховка от зависания: ждём максимум 10 секунд на каждое фото
+        setTimeout(resolve, 10000);
+      });
+    }),
+  ).then(function () {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "2. Скачать Акт в PDF 📄";
+    }
+    try {
+      window.print();
+    } catch (e) {
+      console.error("Ошибка вызова печати:", e);
+      alert(
+        "⚠️ Не удалось открыть окно печати. Попробуйте ещё раз или обновите страницу.",
+      );
+      return;
+    }
+    setTimeout(function () {
+      if (confirm("Выгрузка завершена! Очистить чек-лист для нового обхода?"))
+        location.reload();
+    }, 1000);
+  });
 }
 
 function backToStep1() {
