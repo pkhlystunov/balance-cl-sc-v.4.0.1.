@@ -1,0 +1,163 @@
+:root { 
+    --primary: #2c3e50; 
+    --success: #2ecc71; 
+    --danger: #e74c3c; 
+    --secondary: #7f8c8d; 
+    --gray: #bdc3c7; 
+    --bg: #ecf0f1; 
+    --warning: #f1c40f;
+}
+body { 
+    font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif; 
+    background: var(--bg); 
+    color: #333; 
+    padding: 20px; 
+    margin: 0; 
+}
+.container { 
+    max-width: 650px; 
+    margin: 0 auto; 
+}
+h2, h3 { 
+    text-align: center; 
+    color: var(--primary); 
+}
+.card { 
+    background: #fff; 
+    padding: 20px; 
+    margin-bottom: 15px; 
+    border-radius: 8px; 
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05); 
+    border-left: 6px solid var(--gray); 
+    position: relative; 
+}
+.primary-border { 
+    border-left-color: var(--primary); 
+}
+.audit-header { 
+    border-left-color: #2980b9; 
+    background: #eaf2f8; 
+    font-size: 14px; 
+}
+.audit-header p { 
+    margin: 6px 0; 
+}
+label { 
+    display: block; 
+    margin-top: 15px; 
+    margin-bottom: 4px; 
+    font-weight: 600; 
+    color: #444; 
+}
+input[type="text"], input[type="date"], select { 
+    width: 100%; 
+    padding: 12px; 
+    margin-bottom: 12px; 
+    border: 1px solid var(--gray); 
+    border-radius: 6px; 
+    box-sizing: border-box; 
+    font-size: 15px; 
+    background: #fff; 
+}
+.btn { 
+    padding: 12px 18px; 
+    border: none; 
+    border-radius: 6px; 
+    cursor: pointer; 
+    font-size: 15px; 
+    font-weight: bold; 
+    transition: opacity 0.15s; 
+    text-align: center; 
+    width: 100%; 
+    box-sizing: border-box;
+}
+.btn:hover { 
+    opacity: 0.95; 
+}
+.btn:disabled { 
+    background: var(--gray) !important; 
+    cursor: not-allowed; 
+}
+.btn-success { background: var(--success); color: white; margin-bottom: 8px; }
+.btn-danger { background: var(--danger); color: white; }
+.btn-primary { background: var(--primary); color: white; }
+.btn-secondary { background: var(--secondary); color: white; }
+.comment-box { 
+    display: none; 
+    margin-top: 12px; 
+    padding: 12px; 
+    border: 1px solid var(--danger); 
+    border-radius: 6px; 
+    background: #fdf2f2; 
+    width: 100%; 
+    box-sizing: border-box; 
+    font-size: 14px; 
+}
+.badge { 
+    display: inline-block; 
+    background: #ebf5fb; 
+    padding: 4px 10px; 
+    border-radius: 4px; 
+    font-size: 11px; 
+    font-weight: 700; 
+    color: #2980b9; 
+    text-transform: uppercase; 
+}
+.normative-text { 
+    font-size: 13px; 
+    color: #555; 
+    margin-top: 10px; 
+    background: #f8f9f9; 
+    padding: 10px; 
+    border-radius: 5px; 
+    border-left: 3px solid #3498db; 
+}
+.loading-overlay { 
+    text-align: center; 
+    font-style: italic; 
+    color: #666; 
+    padding: 30px 10px; 
+    font-size: 15px; 
+}
+.meta-info { 
+    font-size: 13px; 
+    color: var(--secondary); 
+    text-align: center; 
+    margin-top: -8px; 
+    margin-bottom: 15px; 
+}
+.error-log { 
+    background: #fadbd8; 
+    border: 1px solid var(--danger); 
+    color: #78281f; 
+    padding: 15px; 
+    border-radius: 6px; 
+    margin-top: 15px; 
+    display: none; 
+    font-family: monospace; 
+    white-space: pre-wrap; 
+    font-size: 13px; 
+    line-height: 1.5; 
+}
+.btn-row { display: flex; gap: 10px; margin-top: 15px; }
+.btn-row .btn { margin: 0; }
+
+/* СТИЛИ ДЛЯ РАЗДЕЛОВ ЧЕК-ЛИСТА (АККОРДЕОНЫ) */
+.category-block { margin-bottom: 12px; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+.category-header { 
+    background: #34495e; 
+    color: white; 
+    padding: 14px 18px; 
+    font-weight: bold; 
+    cursor: pointer; 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center;
+    user-select: none;
+}
+.category-header:hover { background: #2c3e50; }
+.category-content { display: none; background: #fcfcfc; padding: 10px; border: 1px solid #ddd; border-top: none; }
+.category-counter { background: #e67e22; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; }
+.category-counter.completed { background: #2ecc71; }
+
+

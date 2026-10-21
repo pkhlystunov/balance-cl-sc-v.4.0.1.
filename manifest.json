@@ -1,0 +1,22 @@
+{
+  "short_name": "ОТиПБ Контроль",
+  "name": "Контроль Охраны Труда и ПБ",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable" 
+    }
+  ],
+  "start_url": "./index.html",
+  "background_color": "#2c3e50",
+  "theme_color": "#2c3e50",
+  "display": "standalone",
+  "orientation": "portrait"
+}

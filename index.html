@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Контроль ОТиПБ</title>
+    <!-- republish-trigger: принудительная перепубликация SourceCraft Sites -->
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="style.css">
+    <!-- Иконка для рабочего стола iPhone/iPad -->
+<link rel="apple-touch-icon" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" sizes="512x512" href="icon-512.png">
+<!-- Красит верхнюю статус-бар панель iOS в фирменный цвет -->
+<meta name="apple-mobile-web-app-status-bar-style" content="#2c3e50">
+
+    <style>
+        #print-blank-zone { 
+            display: none; 
+            background: #fff; 
+            color: #000; 
+            padding: 25px; 
+            font-family: Arial, sans-serif; 
+        }
+        .network-status { 
+            text-align: center; 
+            padding: 8px; 
+            font-weight: bold; 
+            border-radius: 6px; 
+            margin-bottom: 15px; 
+            font-size: 14px; 
+        }
+        .online-mode { background: #d4edda; color: #155724; }
+        .offline-mode { background: #fff3cd; color: #856404; }
+
+        /* Интерфейс камеры в карточках */
+        .photo-input-container { margin-top: 12px; }
+        .photo-preview-grid { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+        .photo-preview-item { width: 70px; height: 70px; object-fit: cover; border-radius: 4px; border: 1px solid #ddd; }
+        
+        /* Умная фотогалерея в PDF: Крупно, без рамок и без обрезки любых кадров */
+        .pdf-photo-grid { 
+            display: grid; 
+            grid-template-columns: repeat(2, 1fr); 
+            gap: 20px; 
+            margin-top: 15px;
+        }
+        .pdf-photo-card { 
+            border: 1px solid #aaa; 
+            padding: 10px; 
+            text-align: center; 
+            box-sizing: border-box;
+            background: #fff;
+            page-break-inside: avoid;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .pdf-photo-container-img {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #fff;
+            overflow: hidden;
+        }
+        .pdf-photo-img { 
+            max-width: 100%; 
+            max-height: 100mm; /* Оптимальная высота под формат А4 */
+            object-fit: contain; 
+            display: block;
+        }
+        .pdf-photo-desc { font-size: 13px; font-weight: bold; color: #000; margin-top: 8px; padding-top: 6px; border-top: 1px solid #eee; line-height: 1.3; }
+
+        /* СИСТЕМНАЯ МАГИЯ ПЕЧАТИ: Скрываем сайт, выводим на печать только Бланк Акта */
+        @media print {
+            body { background: #fff; padding: 0; margin: 0; }
+            .container, .network-status, h2 { display: none !important; }
+            #print-blank-zone { display: block !important; }
+            .pdf-page-break { page-break-before: always; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>📋 Контроль ОТиПБ</h2>
+    
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:15px;">
+        <div id="net-indicator" class="network-status online-mode" style="flex:1; margin-bottom:0;">🌐 Режим: Онлайн (Данные пишутся в облако)</div>
+        <button id="refresh-btn" onclick="refreshData()" class="btn btn-secondary" style="width:auto; padding:10px 14px; font-size:14px; white-space:nowrap;">🔄 Обновить</button>
+    </div>
+
+    <div id="step-1-form" class="card primary-border">
+        <div class="loading-overlay" id="setup-loading">⏳ Подключение к реестрам Google Таблиц...</div>
+        
+        <div id="form-fields-wrapper" style="display:none;">
+            <label for="inspector"><b>ФИО Проверяющего сотрудника:</b></label>
+            <input type="text" id="inspector" placeholder="Например, Иванов И.И.">
+            
+            <label for="object-select"><b>Объект строительства (Лист 1_Объекты):</b></label>
+            <select id="object-select">
+                <option value="">-- Выберите объект --</option>
+            </select>
+            
+            <label for="contractor-select"><b>Подрядная организация (Лист 2_Подрядчики):</b></label>
+            <select id="contractor-select">
+                <option value="">-- Выберите подрядчика --</option>
+            </select>
+            
+            <button onclick="startFullAudit()" class="btn btn-primary" style="margin-top: 15px;">Начать аудит (Загрузить чек-лист) 🚀</button>
+        </div>
+        
+        <div id="error-display" class="error-log"></div>
+    </div>
+
+    <div id="step-3-checklist" style="display:none;">
+        <div class="audit-header card">
+            <h3 style="margin-top:0; color:#2c3e50;">Текущий обход</h3>
+            <p>👤 <b>Инспектор:</b> <span id="audit-meta-insp"></span></p>
+            <p>🏗️ <b>Объект:</b> <span id="audit-meta-obj"></span></p>
+            <p>🚜 <b>Подрядчик:</b> <span id="audit-meta-contr"></span></p>
+            <p>📅 <b>Дата:</b> <span id="audit-meta-date"></span></p>
+        </div>
+        
+        <div id="questions-container"></div>
+        
+        <div style="margin-top: 25px; display: flex; flex-direction: column; gap: 10px;">
+            <button onclick="submitAuditWithOffline()" id="submit-btn" class="btn btn-primary" style="background: #27ae60;">1. Сохранить Акт (В реестр) 💾</button>
+            <button onclick="downloadChecklistPdf()" id="pdf-btn" class="btn btn-secondary" style="background: #3498db; color: white;" disabled>2. Скачать Акт в PDF 📄</button>
+            <button onclick="backToStep1()" class="btn btn-secondary">← Назад к выбору объекта</button>
+        </div>
+    </div>
+</div>
+
+<!-- ОФИЦИАЛЬНЫЙ ТАБЛИЧНЫЙ БЛАНК ПЕЧАТИ -->
+<div id="print-blank-zone">
+    <div style="text-align: center; border-bottom: 2px solid #2c3e50; padding-bottom: 10px; margin-bottom: 25px;">
+        <div style="margin: 0; color: #2c3e50; font-size: 22px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">АКТ ПРОВЕРКИ СОБЛЮДЕНИЯ ТРЕБОВАНИЙ ОТиПБ</div>
+    </div>
+    
+    <table style="width: 100%; margin-bottom: 30px; font-size: 14px; border-collapse: collapse;">
+        <tr><td style="padding: 6px 0; font-weight: bold; width: 35%; border-bottom: 1px solid #eee;">Дата проверки:</td><td id="p-date" style="padding: 6px 0; border-bottom: 1px solid #eee;"></td></tr>
+        <tr><td style="padding: 6px 0; font-weight: bold; border-bottom: 1px solid #eee;">Выполнил проверку:</td><td id="p-inspector" style="padding: 6px 0; border-bottom: 1px solid #eee;"></td></tr>
+        <tr><td style="padding: 6px 0; font-weight: bold; border-bottom: 1px solid #eee;">Объект контроля:</td><td id="p-object" style="padding: 4px 0; border-bottom: 1px solid #eee;"></td></tr>
+        <tr><td style="padding: 6px 0; font-weight: bold; border-bottom: 1px solid #eee;">Подрядная организация:</td><td id="p-contractor" style="padding: 6px 0; border-bottom: 1px solid #eee;"></td></tr>
+    </table>
+    
+    <div style="font-size: 16px; font-weight: bold; margin-bottom: 15px; color: #2c3e50;">Выявленные нарушения и замечания:</div>
+    
+    <table style="width: 100%; border-collapse: collapse; margin-bottom: 40px;">
+        <thead>
+            <tr style="background-color: #f2f2f2;">
+                <th style="border: 1px solid #ddd; padding: 10px; width: 5%; text-align: center; font-size: 14px;">№</th>
+                <th style="border: 1px solid #ddd; padding: 10px; width: 20%; text-align: left; font-size: 14px;">Раздел</th>
+                <th style="border: 1px solid #ddd; padding: 10px; width: 45%; text-align: left; font-size: 14px;">Требование безопасности</th>
+                <th style="border: 1px solid #ddd; padding: 10px; width: 30%; text-align: left; font-size: 14px;">Замечание инспектора / Срок устранения</th>
+            </tr>
+        </thead>
+        <tbody id="p-violations-tbody"></tbody>
+    </table>
+    
+    <div style="margin-top: 40px; padding-top: 20px; display: flex; justify-content: space-between; font-size: 14px; page-break-inside: avoid;">
+        <div>Подпись проверяющего: _____________________</div>
+        <div>Подпись представителя подрядчика: _____________________</div>
+    </div>
+
+    <div id="pdf-gallery-wrapper"></div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

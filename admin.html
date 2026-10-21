@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Личный манифест и параметры иконки для установки Аналитики на iOS -->
+<link rel="manifest" href="admin.manifest.json">
+<link rel="apple-touch-icon" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" sizes="512x512" href="icon-512.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="#2c3e50">
+
+    <title>Ситуационный центр ОТиПБ</title>
+    <style>
+        :root { 
+            --primary: #2c3e50; 
+            --success: #2ecc71; 
+            --danger: #e74c3c; 
+            --bg: #f4f6f7; 
+            --gray-light: #f8f9f9;
+        }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif; 
+            background: var(--bg); 
+            margin: 0; 
+            padding: 0 20px 40px 20px; 
+            color: #333; 
+        }
+        .admin-container { max-width: 1100px; margin: 0 auto; padding-top: 20px; }
+        
+        .header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            background: #fff; 
+            padding: 15px 25px; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05); 
+            margin-bottom: 20px; 
+        }
+        .header h1 { margin: 0; font-size: 20px; color: var(--primary); }
+        .sync-indicator { font-size: 13px; color: #d35400; font-weight: bold; }
+
+        /* ЖЕСТКО ЗАКРЕПЛЕННОЕ МЕНЮ НАВИГАЦИИ ДЛЯ ПК (ПРИЛИПАЕТ К ВЕРХУ ПРИ СКРОЛЛЕ) */
+        .tabs-wrapper {
+            position: sticky;
+            top: 0;
+            background: var(--bg);
+            padding: 10px 0;
+            z-index: 999;
+            margin-bottom: 15px;
+        }
+        .tabs { display: flex; gap: 10px; max-width: 1100px; margin: 0 auto; }
+        .tab-btn { 
+            padding: 14px 25px; border: none; background: #bdc3c7; color: #fff; 
+            font-weight: bold; cursor: pointer; border-radius: 6px; font-size: 14px; width: 100%;
+            transition: background 0.15s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .tab-btn.active { background: var(--primary); }
+
+        /* СКВОЗНЫЕ ФИЛЬТРЫ */
+        .filter-bar { 
+            display: grid; 
+            grid-template-columns: repeat(5, 1fr); 
+            gap: 15px; 
+            background: #eaf2f8; 
+            padding: 15px; 
+            border-radius: 6px; 
+            margin-bottom: 25px; 
+        }
+        .filter-bar label { display: block; font-size: 12px; font-weight: bold; margin-bottom: 4px; color: #555; }
+        .filter-bar input, .filter-bar select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 13px; }
+
+        /* ТАБ-КОНТЕНТ */
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* СВОДНЫЕ КАРТОЧКИ СТАТИСТИКИ */
+        .widgets-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 25px; }
+        .widget-card { background: #fff; border: 1px solid #ddd; padding: 15px; border-radius: 6px; text-align: center; }
+        .widget-card h3 { margin: 0 0 5px 0; font-size: 14px; color: #7f8c8d; }
+        .widget-card div { font-size: 28px; font-weight: bold; }
+        .widget-primary { border-top: 4px solid var(--primary); }
+        .widget-danger { border-top: 4px solid var(--danger); }
+        .widget-success { border-top: 4px solid var(--success); }
+
+        /* ДВЕ НАТИВНЫЕ ГИСТОГРАММЫ НА CSS */
+        .chart-box { background: #fff; padding: 20px; border: 1px solid #eee; border-radius: 6px; margin-bottom: 20px; }
+        .native-chart-container { display: flex; flex-direction: column; gap: 14px; margin-top: 15px; }
+        .chart-row { display: flex; align-items: center; font-size: 13px; }
+        .chart-label { width: 35%; font-weight: bold; color: #34495e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 10px; }
+        .chart-bar-wrapper { width: 55%; background: #f0f3f4; border-radius: 4px; overflow: hidden; height: 24px; }
+        .chart-bar-fill { background: #e74c3c; height: 100%; transition: width 0.3s ease; border-radius: 4px; }
+        .chart-value { width: 10%; text-align: right; font-weight: bold; color: #c0392b; padding-left: 10px; white-space: nowrap; }
+
+        /* ТАБЛИЦА ЖУРНАЛА */
+        .card { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .table-wrapper { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; text-align: left; font-size: 14px; }
+        th, td { padding: 12px; border-bottom: 1px solid #ddd; }
+        th { background: var(--gray-light); color: var(--primary); }
+
+        /* МОБИЛЬНАЯ АДАПТАЦИЯ (ЭКРАНЫ МЕНЕЕ 768px) */
+        @media (max-width: 768px) {
+            body { padding: 0 10px 95px 10px; }
+            .admin-container { padding-top: 10px; }
+            .header { flex-direction: column; gap: 8px; text-align: center; padding: 12px; }
+            .filter-bar { grid-template-columns: 1fr; gap: 10px; padding: 10px; }
+            .widgets-grid { grid-template-columns: 1fr; gap: 10px; }
+            .chart-row { flex-direction: column; align-items: flex-start; gap: 4px; border-bottom: 1px solid #eee; padding-bottom: 8px; }
+            .chart-label { width: 100%; padding: 0; white-space: normal; }
+            .chart-bar-wrapper { width: 100%; height: 18px; }
+            .chart-value { width: 100%; text-align: left; padding: 0; margin-top: 2px; }
+            th, td { padding: 8px; font-size: 13px; }
+            
+            /* НА МОБИЛЬНЫХ ОТКЛЮЧАЕМ ВЕРХНЕЕ ПРИЛИПАНИЕ И КРЕПИМ СТРОГО ВНИЗ ЭКРАНА */
+            .tabs-wrapper { 
+                position: fixed; bottom: 0; top: auto; left: 0; width: 100%; background: #fff; 
+                box-shadow: 0 -3px 10px rgba(0,0,0,0.1); margin: 0; padding: 12px; box-sizing: border-box;
+            }
+            .tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+            .tab-btn { padding: 15px 10px; font-size: 15px; border-radius: 8px; box-shadow: none; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="admin-container">
+    <div class="header">
+        <h1>Ситуационный центр ОТиПБ</h1>
+        <div style="display:flex; align-items:center; gap:12px;">
+            <div id="sync-status" class="sync-indicator">⏳ Подключение...</div>
+            <button id="btn-refresh" onclick="refreshData()" style="padding:8px 14px; border:none; background:var(--primary); color:#fff; font-weight:bold; border-radius:6px; cursor:pointer; font-size:13px;">🔄 Обновить</button>
+        </div>
+    </div>
+
+    <!-- Контейнер навигации (на ПК прилипает к верху, на смартфонах падает в подвал) -->
+    <div class="tabs-wrapper">
+        <div class="tabs">
+            <button class="tab-btn active" id="btn-registry" onclick="switchTab('registry-tab')">📋 Реестр предписаний</button>
+            <button class="tab-btn" id="btn-analytics" onclick="switchTab('analytics-tab')">📊 Аналитика и Графики</button>
+        </div>
+    </div>
+
+    <!-- Сквозные фильтры управления -->
+    <div class="filter-bar">
+        <div>
+            <label for="f-object">Объект контроля:</label>
+            <select id="f-object" onchange="applyFilters()">
+                <option value="Все">-- Все объекты --</option>
+            </select>
+        </div>
+        <div>
+            <label for="f-contractor">Подрядная организация (ПО):</label>
+            <select id="f-contractor" onchange="applyFilters()">
+                <option value="Все">-- Все подрядчики --</option>
+            </select>
+        </div>
+        <div>
+            <label for="f-start">Дата с:</label>
+            <input type="date" id="f-start" onchange="applyFilters()">
+        </div>
+        <div>
+            <label for="f-end">Дата по:</label>
+            <input type="date" id="f-end" onchange="applyFilters()">
+        </div>
+        <div>
+            <label for="f-status">Статус предписания:</label>
+            <select id="f-status" onchange="applyFilters()">
+                <option value="Все">-- Все --</option>
+                <option value="Открыто">Открыто</option>
+                <option value="Закрыто">Закрыто</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- ВКЛАДКА 1: ОПЕРАТИВНЫЙ ЖУРНАЛ ЗАМЕЧАНИЙ -->
+    <div id="registry-tab" class="tab-content active">
+        <div class="card" style="border-left: 6px solid var(--primary);">
+            <h3 style="margin-top: 0; color: var(--primary);">📋 Журнал зафиксированных замечаний</h3>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 10%;">Дата</th>
+                            <th style="width: 15%;">Объект контроля</th>
+                            <th style="width: 16%;">Подрядная организация</th>
+                            <th style="width: 40%;">Подробное описание замечаний инспектора</th>
+                            <th style="width: 9%;">Статус</th>
+                            <th style="width: 10%;">Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody id="registry-tbody">
+                        <tr><td colspan="6" style="text-align:center; padding:20px; font-style:italic;">⏳ Синхронизация реестров...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ВКЛАДКА 2: ГЛУБОКАЯ АНАЛИТИКА (ОБЪЕКТЫ И ПОДРЯДЧИКИ) -->
+    <div id="analytics-tab" class="tab-content">
+        <div class="widgets-grid">
+            <div class="widget-card widget-primary">
+                <h3>Проведено инспекций за период</h3>
+                <div id="w-checks">0</div>
+            </div>
+            <div class="widget-card widget-danger">
+                <h3>Выявлено нарушений за период</h3>
+                <div id="w-violations">0</div>
+            </div>
+            <div class="widget-card widget-success">
+                <h3>Закрыто предписаний за период</h3>
+                <div id="w-closed">0</div>
+            </div>
+        </div>
+        
+        <!-- ГРАФИК №1: АНТИРЕЙТИНГ СТРОИТЕЛЬНЫХ ПЛОЩАДОК -->
+        <div class="chart-box" style="border-left: 6px solid #3498db;">
+            <h3 style="margin: 0; font-size: 15px; color: var(--primary);">Антирейтинг Объектов строительства (Всего замечаний)</h3>
+            <div id="objects-chart-body" class="native-chart-container">
+                <!-- Сюда JS выведет полосы объектов -->
+            </div>
+        </div>
+
+        <!-- ГРАФИК №2: АНТИРЕЙТИНГ ПОДРЯДЧИКОВ С ПРИВЯЗКОЙ К КОРОТКОМУ ИМЕНИ ОБЪЕКТА -->
+        <div class="chart-box" style="border-left: 6px solid var(--danger);">
+            <h3 style="margin: 0; font-size: 15px; color: var(--primary);">Антирейтинг Подрядных организаций [Объект | Подрядчик]</h3>
+            <div id="contractors-chart-body" class="native-chart-container">
+                <!-- Сюда JS выведет полосы подрядчиков -->
+            </div>
+        </div>
+
+        <!-- ГРАФИК №3: ЗАКРЫТЫЕ ПРЕДПИСАНИЯ ПО ОБЪЕКТАМ -->
+        <div class="chart-box" style="border-left: 6px solid var(--success);">
+            <h3 style="margin: 0; font-size: 15px; color: var(--primary);">Закрытые предписания по Объектам</h3>
+            <div id="closed-objects-chart-body" class="native-chart-container">
+                <!-- Сюда JS выведет полосы закрытых предписаний по объектам -->
+            </div>
+        </div>
+
+        <!-- ГРАФИК №4: ЗАКРЫТЫЕ ПРЕДПИСАНИЯ ПО ПОДРЯДЧИКАМ -->
+        <div class="chart-box" style="border-left: 6px solid var(--success);">
+            <h3 style="margin: 0; font-size: 15px; color: var(--primary);">Закрытые предписания по Подрядчикам [Объект | Подрядчик]</h3>
+            <div id="closed-contractors-chart-body" class="native-chart-container">
+                <!-- Сюда JS выведет полосы закрытых предписаний по подрядчикам -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="admin-app.js"></script>
+</body>
+</html>
