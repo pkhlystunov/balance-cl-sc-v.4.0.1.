@@ -125,12 +125,14 @@ function renderRegistry(data) {
             ? "<button onclick='reopenAudit(\"" + r.id + "\")' style='padding:6px 10px; border:none; background:#f39c12; color:#fff; font-weight:bold; border-radius:4px; cursor:pointer; font-size:12px;'>↩️ Открыть</button>"
             : "<button onclick='closeAudit(\"" + r.id + "\")' style='padding:6px 10px; border:none; background:#27ae60; color:#fff; font-weight:bold; border-radius:4px; cursor:pointer; font-size:12px;'>✅ Закрыть</button>";
 
+        const delBtn = "<button onclick='deleteAudit(\"" + r.id + "\")' style='padding:6px 10px; border:none; background:#e74c3c; color:#fff; font-weight:bold; border-radius:4px; cursor:pointer; font-size:12px; margin-left:4px;'>🗑️ Удалить</button>";
+
         tr.innerHTML = "<td>" + formattedDate + "</td>" +
                        "<td><b>" + r.object + "</b></td>" +
                        "<td>" + r.contractor + "</td>" +
                        "<td style='white-space: pre-wrap; font-size:13px; line-height:1.4; color:#2c3e50;'>" + (r.text || "Нарушений не выявлено") + "</td>" +
                        "<td style='text-align:center;'>" + statusHtml + "</td>" +
-                       "<td style='text-align:center;'>" + actionHtml + "</td>";
+                       "<td style='text-align:center;'>" + actionHtml + delBtn + "</td>";
         tbody.appendChild(tr);
     });
 }
@@ -141,7 +143,7 @@ async function closeAudit(id) {
     try {
         const response = await fetch(apiPath("audits/" + id + "/close"), {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            // Без Content-Type: application/json — «простой» запрос (обход preflight CORS).
             redirect: "follow"
         });
         const res = await response.json();
@@ -163,7 +165,7 @@ async function reopenAudit(id) {
     try {
         const response = await fetch(apiPath("audits/" + id + "/reopen"), {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            // Без Content-Type: application/json — «простой» запрос (обход preflight CORS).
             redirect: "follow"
         });
         const res = await response.json();
@@ -176,6 +178,29 @@ async function reopenAudit(id) {
     } catch (e) {
         console.error(e);
         alert("Ошибка сети при открытии предписания");
+    }
+}
+
+// Удаление предписания (только админка)
+async function deleteAudit(id) {
+    if (!confirm("Удалить предписание навсегда? Это действие необратимо.")) return;
+    try {
+        // DELETE заменён на POST ?method=DELETE — «простой» запрос без preflight OPTIONS
+        // (Yandex Cloud Functions не передаёт OPTIONS в код функции, CORS на платформе выключен).
+        const response = await fetch(apiPath("audits/" + id) + "&method=DELETE", {
+            method: "POST",
+            redirect: "follow"
+        });
+        const res = await response.json();
+        if (res.success) {
+            alert("Предписание удалено 🗑️");
+            loadData();
+        } else {
+            alert("Ошибка: " + (res.error || "неизвестная"));
+        }
+    } catch (e) {
+        console.error(e);
+        alert("Ошибка сети при удалении предписания");
     }
 }
 
