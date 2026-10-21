@@ -48,6 +48,13 @@ if ("serviceWorker" in navigator) {
 
 window.addEventListener("online", updateNetworkStatus);
 window.addEventListener("offline", updateNetworkStatus);
+// Мобильные браузеры приостанавливают таймеры в фоне — при возврате
+// в приложение (visibilitychange) сразу проверяем буфер.
+document.addEventListener("visibilitychange", function () {
+  if (document.visibilityState === "visible" && navigator.onLine) {
+    syncOfflineQueue();
+  }
+});
 
 // Периодическая синхронизация буфера: событие online на мобильных
 // браузерах срабатывает ненадёжно, поэтому дополнительно проверяем
@@ -109,15 +116,47 @@ async function refreshData(force) {
 
   if (hard) {
     // Принудительный сброс кеша: очищаем кеши service worker и перезагружаем страницу.
+    // Каждая операция ограничена по времени (2 сек), чтобы сброс всегда завершался,
+    // даже если браузер завис на caches.keys()/delete.
     try {
-      if (window.caches && caches.keys) {
-        const keys = await caches.keys();
-        await Promise.all(keys.map(function (k) { return caches.delete(k); }));
-      }
-      if (navigator.serviceWorker) {
-        const regs = await navigator.serviceWorker.getRegistrations();
-        await Promise.all(regs.map(function (r) { return r.unregister(); }));
-      }
+      const withTimeout = function (p, ms, fallback) {
+        return Promise.race([
+          p,
+          new Promise(function (resolve) {
+            setTimeout(function () { resolve(fallback); }, ms || 2000);
+          }),
+        ]);
+      };
+      await withTimeout(
+        Promise.resolve()
+          .then(function () {
+            if (window.caches && caches.keys) {
+              return caches.keys().then(function (keys) {
+                return Promise.all(
+                  keys.map(function (k) { return caches.delete(k); }),
+                );
+              });
+            }
+            return null;
+          }),
+        2000,
+      );
+      await withTimeout(
+        Promise.resolve()
+          .then(function () {
+            if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+              return navigator.serviceWorker
+                .getRegistrations()
+                .then(function (regs) {
+                  return Promise.all(
+                    regs.map(function (r) { return r.unregister(); }),
+                  );
+                });
+            }
+            return null;
+          }),
+        2000,
+      );
     } catch (e) {
       console.error("Ошибка при сбросе кеша:", e);
     }
@@ -543,8 +582,8 @@ async function submitAuditWithOffline() {
   if (navigator.onLine) {
     btn.innerText = "⏳ Отправка...";
     try {
-      // Таймаут 15 сек: если сервер не ответил — считаем сеть недоступной
-      // и сохраняем акт в буфер (повторная выгрузка при появлении сети).
+      // Таймаут 90 сек: акты с фото (base64) — большой payload,
+      // 15 сек на мобильной сети не хватало.
       const response = await fetchWithTimeout(
         apiPath("audits"),
         {
@@ -553,7 +592,7 @@ async function submitAuditWithOffline() {
           // браузер не шлёт preflight OPTIONS (обход CORS на стороне YC).
           body: JSON.stringify(auditSession),
         },
-        15000,
+        90000,
       );
       if (!response.ok) throw new Error("HTTP " + response.status);
       btn.innerText = "Акт сохранен!";
@@ -694,48 +733,65 @@ async function saveToOfflineQueue(session) {
   }
 }
 
+let syncInProgress = false;
 async function syncOfflineQueue() {
-  let queue = [];
+  // Защита от параллельного запуска (таймер + событие online + фокус/visibility)
+  if (syncInProgress) return;
+  syncInProgress = true;
   try {
-    queue = await idbGetAllAudits();
-  } catch (e) {
-    console.error("Не удалось прочитать буфер:", e);
-    return;
-  }
-  if (queue.length === 0) return;
-  let synced = 0;
-  for (let i = 0; i < queue.length; i++) {
-    const item = queue[i];
-    // Убеждаемся, что у офлайн-акта есть auditId (UUID v4)
-    if (!item.auditId) {
-      item.auditId = generateUuid();
-    }
+    let queue = [];
     try {
-      const response = await fetchWithTimeout(
-        apiPath("audits"),
-        {
-          method: "POST",
-          // Без Content-Type: application/json — «простой» запрос (обход preflight CORS).
-          body: JSON.stringify(item),
-        },
-        15000,
-      );
-      if (response.ok) {
-        synced++;
-        // Удаляем из буфера только успешно отправленные акты
-        await idbRemoveAudit(item.auditId);
-      }
+      queue = await idbGetAllAudits();
     } catch (e) {
-      // Сеть снова пропала — останавливаемся, остальное отправим позже.
-      break;
+      console.error("Не удалось прочитать буфер:", e);
+      return;
     }
-  }
-  if (synced > 0) {
-    alert(
-      "✅ Связь восстановлена. Отправлено в реестр из буфера: " +
-        synced +
-        " акт(ов).",
-    );
+    if (queue.length === 0) return;
+    let synced = 0;
+    for (let i = 0; i < queue.length; i++) {
+      const item = queue[i];
+      // Убеждаемся, что у офлайн-акта есть auditId (UUID v4)
+      if (!item.auditId) {
+        item.auditId = generateUuid();
+      }
+      try {
+        // Таймаут 90 сек: акты с фото (base64) — большой payload,
+        // 15 сек на мобильной сети не хватало, запрос обрывался.
+        const response = await fetchWithTimeout(
+          apiPath("audits"),
+          {
+            method: "POST",
+            // Без Content-Type: application/json — «простой» запрос (обход preflight CORS).
+            body: JSON.stringify(item),
+          },
+          90000,
+        );
+        if (response.ok) {
+          synced++;
+          // Удаляем из буфера только успешно отправленные акты
+          await idbRemoveAudit(item.auditId);
+        } else {
+          // Сервер ответил ошибкой — акт остаётся в буфере для следующей попытки
+          console.warn(
+            "Сервер вернул ошибку, акт остаётся в буфере:",
+            response.status,
+          );
+        }
+      } catch (e) {
+        // Сеть снова пропала — останавливаемся, остальное отправим позже.
+        console.warn("Ошибка отправки из буфера, повторим позже:", e);
+        break;
+      }
+    }
+    if (synced > 0) {
+      alert(
+        "✅ Связь восстановлена. Отправлено в реестр из буфера: " +
+          synced +
+          " акт(ов).",
+      );
+    }
+  } finally {
+    syncInProgress = false;
   }
 }
 
