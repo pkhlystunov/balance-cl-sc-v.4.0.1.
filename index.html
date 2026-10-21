@@ -106,6 +106,12 @@
             <select id="contractor-select">
                 <option value="">-- Выберите подрядчика --</option>
             </select>
+            <button type="button" onclick="toggleNewContractor()" id="add-contractor-btn" class="btn btn-secondary" style="margin-top: 6px; width:auto; padding:8px 12px; font-size:13px;">➕ Новый подрядчик</button>
+            <div id="new-contractor-wrapper" style="display:none; margin-top:8px;">
+                <label for="new-contractor-input"><b>Название новой подрядной организации:</b></label>
+                <input type="text" id="new-contractor-input" placeholder="Введите название организации">
+                <button type="button" onclick="addNewContractor()" class="btn btn-primary" style="margin-top: 6px; width:auto; padding:8px 14px; font-size:13px;">✔️ Добавить подрядчика</button>
+            </div>
             
             <button onclick="startFullAudit()" class="btn btn-primary" style="margin-top: 15px;">Начать аудит (Загрузить чек-лист) 🚀</button>
         </div>
