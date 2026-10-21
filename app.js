@@ -110,6 +110,8 @@ async function refreshData() {
 }
 
 document.addEventListener("DOMContentLoaded", async function () {
+  // Переносим старый буфер из localStorage в IndexedDB (если он был)
+  await migrateLegacyOfflineQueue();
   updateNetworkStatus();
   await loadSetupData();
 });
@@ -482,23 +484,123 @@ async function submitAuditWithOffline() {
   }
 }
 
-function saveToOfflineQueue(session) {
+// --- Офлайн-буфер на IndexedDB (вместо localStorage) ---
+// localStorage ограничен ~5 МБ на домен — фото в base64 его переполняют,
+// и акт не сохраняется. IndexedDB позволяет хранить сотни МБ, поэтому
+// акты с фото сохраняются надёжно, независимо от свободной памяти телефона.
+
+const OFFLINE_DB_NAME = "otipb-offline";
+const OFFLINE_DB_VERSION = 1;
+const OFFLINE_STORE = "audit_queue";
+
+function openOfflineDb() {
+  return new Promise(function (resolve, reject) {
+    const request = indexedDB.open(OFFLINE_DB_NAME, OFFLINE_DB_VERSION);
+    request.onupgradeneeded = function (event) {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains(OFFLINE_STORE)) {
+        db.createObjectStore(OFFLINE_STORE, { keyPath: "auditId" });
+      }
+    };
+    request.onsuccess = function () {
+      resolve(request.result);
+    };
+    request.onerror = function () {
+      reject(request.error);
+    };
+  });
+}
+
+function idbAddAudit(session) {
+  return openOfflineDb().then(function (db) {
+    return new Promise(function (resolve, reject) {
+      const tx = db.transaction(OFFLINE_STORE, "readwrite");
+      const store = tx.objectStore(OFFLINE_STORE);
+      // put с ключом auditId — идемпотентно (не создаёт дубль)
+      store.put(session);
+      tx.oncomplete = function () {
+        db.close();
+        resolve();
+      };
+      tx.onerror = function () {
+        db.close();
+        reject(tx.error);
+      };
+    });
+  });
+}
+
+function idbGetAllAudits() {
+  return openOfflineDb().then(function (db) {
+    return new Promise(function (resolve, reject) {
+      const tx = db.transaction(OFFLINE_STORE, "readonly");
+      const store = tx.objectStore(OFFLINE_STORE);
+      const request = store.getAll();
+      request.onsuccess = function () {
+        db.close();
+        resolve(request.result || []);
+      };
+      request.onerror = function () {
+        db.close();
+        reject(request.error);
+      };
+    });
+  });
+}
+
+function idbRemoveAudit(auditId) {
+  return openOfflineDb().then(function (db) {
+    return new Promise(function (resolve, reject) {
+      const tx = db.transaction(OFFLINE_STORE, "readwrite");
+      const store = tx.objectStore(OFFLINE_STORE);
+      store.delete(auditId);
+      tx.oncomplete = function () {
+        db.close();
+        resolve();
+      };
+      tx.onerror = function () {
+        db.close();
+        reject(tx.error);
+      };
+    });
+  });
+}
+
+// Перенос старых актов из localStorage (лимит ~5 МБ) в IndexedDB,
+// чтобы ничего не потерять после перехода на новый буфер.
+async function migrateLegacyOfflineQueue() {
   try {
-    const queue = JSON.parse(localStorage.getItem("offline_audit_queue") || "[]");
-    // Не дублируем акт с тем же auditId (идемпотентность на backend)
-    if (!queue.some(function (q) { return q.auditId === session.auditId; })) {
-      queue.push(session);
+    const legacy = localStorage.getItem("offline_audit_queue");
+    if (!legacy) return;
+    const queue = JSON.parse(legacy);
+    if (!Array.isArray(queue) || queue.length === 0) {
+      localStorage.removeItem("offline_audit_queue");
+      return;
     }
-    localStorage.setItem("offline_audit_queue", JSON.stringify(queue));
+    for (let i = 0; i < queue.length; i++) {
+      if (queue[i] && queue[i].auditId) {
+        await idbAddAudit(queue[i]);
+      }
+    }
+    localStorage.removeItem("offline_audit_queue");
+    console.log("Миграция офлайн-буфера в IndexedDB выполнена:", queue.length);
+  } catch (e) {
+    console.error("Не удалось перенести старый буфер:", e);
+  }
+}
+
+async function saveToOfflineQueue(session) {
+  try {
+    await idbAddAudit(session);
     document.getElementById("submit-btn").innerText = "💾 Офлайн-сохранено!";
     document.getElementById("pdf-btn").disabled = false;
     alert("⚠️ Данные сохранены в буфер телефона.");
     return true;
   } catch (e) {
-    // localStorage переполнен или недоступен — данные в память не сохранить.
+    // IndexedDB недоступна/переполнена — данные в память не сохранить.
     console.error("Не удалось сохранить акт в буфер телефона:", e);
     alert(
-      "⚠️ Не удалось сохранить акт в память телефона (память переполнена).\n" +
+      "⚠️ Не удалось сохранить акт в память телефона.\n" +
         "Скачайте акт сейчас, чтобы не потерять данные.",
     );
     document.getElementById("pdf-btn").disabled = false;
@@ -506,24 +608,16 @@ function saveToOfflineQueue(session) {
   }
 }
 
-// Удаление конкретного акта из буфера (после успешной отправки в облако)
-function removeFromOfflineQueue(auditId) {
-  try {
-    const queue = JSON.parse(localStorage.getItem("offline_audit_queue") || "[]");
-    const remaining = queue.filter(function (q) {
-      return q.auditId !== auditId;
-    });
-    localStorage.setItem("offline_audit_queue", JSON.stringify(remaining));
-  } catch (e) {
-    console.error("Не удалось обновить буфер:", e);
-  }
-}
-
 async function syncOfflineQueue() {
-  const queue = JSON.parse(localStorage.getItem("offline_audit_queue") || "[]");
+  let queue = [];
+  try {
+    queue = await idbGetAllAudits();
+  } catch (e) {
+    console.error("Не удалось прочитать буфер:", e);
+    return;
+  }
   if (queue.length === 0) return;
   let synced = 0;
-  const remaining = [];
   for (let i = 0; i < queue.length; i++) {
     const item = queue[i];
     // Убеждаемся, что у офлайн-акта есть auditId (UUID v4)
@@ -542,19 +636,13 @@ async function syncOfflineQueue() {
       );
       if (response.ok) {
         synced++;
-      } else {
-        remaining.push(item);
+        // Удаляем из буфера только успешно отправленные акты
+        await idbRemoveAudit(item.auditId);
       }
     } catch (e) {
       // Сеть снова пропала — останавливаемся, остальное отправим позже.
-      remaining.push(item);
       break;
     }
-  }
-  try {
-    localStorage.setItem("offline_audit_queue", JSON.stringify(remaining));
-  } catch (e) {
-    console.error("Не удалось обновить буфер:", e);
   }
   if (synced > 0) {
     alert(
