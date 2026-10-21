@@ -1,5 +1,10 @@
-// УКАЖИТЕ АДРЕС ВАШЕГО BACKEND (после развёртывания в облаке):
-const API_URL = "https://functions.yandexcloud.net/d4elvbg35d2cp08omcrr/api";
+// Адрес backend (Yandex Cloud Functions).
+// ВАЖНО: путь к API передаётся через query-параметр ?path=, т.к. Cloud Functions
+// не передаёт путь после ID функции (см. server/index.js — event.queryStringParameters.path).
+const FUNCTION_URL = "https://functions.yandexcloud.net/d4elvbg35d2cp08omcrr";
+function apiPath(path) {
+  return FUNCTION_URL + "?path=" + encodeURIComponent("/api/" + path);
+}
 
 let auditSession = {
   inspector: "",
@@ -48,7 +53,7 @@ function updateNetworkStatus() {
 
 async function loadSetupData() {
   try {
-    const response = await fetch(API_URL + "/setup", {
+    const response = await fetch(apiPath("setup"), {
       method: "GET",
       redirect: "follow",
     });
@@ -74,7 +79,7 @@ async function refreshData() {
   const step3 = document.getElementById("step-3-checklist");
   if (step3 && step3.style.display !== "none") {
     try {
-      const response = await fetch(API_URL + "/checklist", {
+      const response = await fetch(apiPath("checklist"), {
         method: "GET",
         redirect: "follow",
       });
@@ -142,7 +147,7 @@ async function startFullAudit() {
     new Date().toLocaleDateString("ru-RU");
 
   try {
-    const response = await fetch(API_URL + "/checklist", {
+    const response = await fetch(apiPath("checklist"), {
       method: "GET",
       redirect: "follow",
     });
@@ -410,7 +415,7 @@ async function submitAuditWithOffline() {
       // Таймаут 12 сек: если сервер не ответил — считаем сеть недоступной
       // и сохраняем акт в буфер (повторная выгрузка при появлении сети).
       const response = await fetchWithTimeout(
-        API_URL + "/audits",
+        apiPath("audits"),
         {
           method: "POST",
           body: JSON.stringify(auditSession),
@@ -449,7 +454,7 @@ async function syncOfflineQueue() {
         queue[i].auditId =
           "audit-" + Date.now() + "-" + Math.random().toString(36).slice(2, 10);
       }
-      await fetch(API_URL + "/audits", {
+      await fetch(apiPath("audits"), {
         method: "POST",
         body: JSON.stringify(queue[i]),
         headers: { "Content-Type": "application/json" },
