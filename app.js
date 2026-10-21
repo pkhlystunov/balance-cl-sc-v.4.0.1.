@@ -122,6 +122,39 @@ function populateSelects(res) {
   document.getElementById("setup-loading").style.display = "none";
   document.getElementById("form-fields-wrapper").style.display = "block";
 }
+
+function toggleNewContractor() {
+  const wrapper = document.getElementById("new-contractor-wrapper");
+  wrapper.style.display = wrapper.style.display === "none" ? "block" : "none";
+}
+
+async function addNewContractor() {
+  const input = document.getElementById("new-contractor-input");
+  const name = input.value.trim();
+  if (!name) return alert("Введите название подрядчика!");
+  try {
+    const response = await fetch(apiPath("contractors"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      redirect: "follow",
+      body: JSON.stringify({ name: name }),
+    });
+    const res = await response.json();
+    if (res.success) {
+      input.value = "";
+      document.getElementById("new-contractor-wrapper").style.display = "none";
+      alert("Подрядчик добавлен: " + name);
+      // Обновляем справочники, чтобы новый подрядчик появился в списке
+      loadSetupData();
+    } else {
+      alert("Ошибка: " + (res.error || "неизвестная"));
+    }
+  } catch (e) {
+    console.error(e);
+    alert("Ошибка сети при добавлении подрядчика");
+  }
+}
+
 async function startFullAudit() {
   const insp = document.getElementById("inspector").value.trim();
   const obj = document.getElementById("object-select").value;
@@ -421,13 +454,15 @@ async function submitAuditWithOffline() {
           body: JSON.stringify(auditSession),
           headers: { "Content-Type": "application/json" },
         },
-        12000,
+        60000,
       );
       if (!response.ok) throw new Error("HTTP " + response.status);
       btn.innerText = "Акт сохранен!";
       document.getElementById("pdf-btn").disabled = false;
       alert("Данные успешно сохранены в реестр!");
     } catch (e) {
+      // Логируем причину (таймаут/CORS/сеть), чтобы было видно в консоли.
+      console.error("Ошибка отправки акта в облако:", e);
       saveToOfflineQueue(auditSession);
     }
   } else {
