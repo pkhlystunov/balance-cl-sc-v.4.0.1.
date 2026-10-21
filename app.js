@@ -6,6 +6,16 @@ function apiPath(path) {
   return FUNCTION_URL + "?path=" + encodeURIComponent("/api/" + path);
 }
 
+// Генерация UUID v4 (колонка audits.id в БД имеет тип UUID)
+function generateUuid() {
+  if (crypto.randomUUID) return crypto.randomUUID();
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 let auditSession = {
   inspector: "",
   objectName: "",
@@ -437,10 +447,9 @@ async function submitAuditWithOffline() {
   const btn = document.getElementById("submit-btn");
   btn.disabled = true;
 
-  // Генерируем auditId для идемпотентности (backend требует его)
+  // Генерируем auditId (UUID v4) для идемпотентности — колонка audits.id имеет тип UUID
   if (!auditSession.auditId) {
-    auditSession.auditId =
-      "audit-" + Date.now() + "-" + Math.random().toString(36).slice(2, 10);
+    auditSession.auditId = generateUuid();
   }
 
   if (navigator.onLine) {
@@ -486,10 +495,9 @@ async function syncOfflineQueue() {
   if (queue.length === 0) return;
   for (let i = 0; i < queue.length; i++) {
     try {
-      // Убеждаемся, что у офлайн-акта есть auditId
+      // Убеждаемся, что у офлайн-акта есть auditId (UUID v4)
       if (!queue[i].auditId) {
-        queue[i].auditId =
-          "audit-" + Date.now() + "-" + Math.random().toString(36).slice(2, 10);
+        queue[i].auditId = generateUuid();
       }
       await fetch(apiPath("audits"), {
         method: "POST",
