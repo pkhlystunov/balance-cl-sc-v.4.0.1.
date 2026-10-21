@@ -1,5 +1,11 @@
 // Ядро ситуационного центра ОТиПБ v12.
-const API_URL = "https://functions.yandexcloud.net/d4elvbg35d2cp08omcrr/api";
+// Адрес backend (Yandex Cloud Functions).
+// ВАЖНО: путь к API передаётся через query-параметр ?path=, т.к. Cloud Functions
+// не передаёт путь после ID функции (см. server/index.js — event.queryStringParameters.path).
+const FUNCTION_URL = "https://functions.yandexcloud.net/d4elvbg35d2cp08omcrr";
+function apiPath(path) {
+    return FUNCTION_URL + "?path=" + encodeURIComponent("/api/" + path);
+}
 
 let rawData = [];
 let shortObjectsMap = {}; // Карта сопоставления: "Полное имя" -> "Короткий ID (Колонка А)"
@@ -21,7 +27,7 @@ async function loadData() {
     const statusText = document.getElementById('sync-status');
     try {
         // Шаг 1: Сначала подтягиваем справочник объектов, чтобы узнать короткие имена
-        const setupResponse = await fetch(API_URL + "/setup", { method: "GET", redirect: "follow" });
+        const setupResponse = await fetch(apiPath("setup"), { method: "GET", redirect: "follow" });
         const setupRes = await setupResponse.json();
         
         if (setupRes && setupRes.success) {
@@ -32,7 +38,7 @@ async function loadData() {
         }
 
         // Шаг 2: Скачиваем реестр проверок инспекторов
-        const response = await fetch(API_URL + "/audits", { method: "GET", redirect: "follow" });
+        const response = await fetch(apiPath("audits"), { method: "GET", redirect: "follow" });
         const res = await response.json();
         
         if (res && res.success) {
@@ -133,7 +139,7 @@ function renderRegistry(data) {
 async function closeAudit(id) {
     if (!confirm("Закрыть предписание?")) return;
     try {
-        const response = await fetch(API_URL + "/audits/" + id + "/close", {
+        const response = await fetch(apiPath("audits/" + id + "/close"), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             redirect: "follow"
@@ -155,7 +161,7 @@ async function closeAudit(id) {
 async function reopenAudit(id) {
     if (!confirm("Открыть предписание обратно?")) return;
     try {
-        const response = await fetch(API_URL + "/audits/" + id + "/reopen", {
+        const response = await fetch(apiPath("audits/" + id + "/reopen"), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             redirect: "follow"
