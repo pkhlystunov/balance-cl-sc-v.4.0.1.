@@ -98,10 +98,12 @@ function updateNetworkStatus() {
 
 async function loadSetupData() {
   try {
-    const response = await fetch(apiPath("setup"), {
+    // Таймаут 15 сек: если сервер (или «спящий» Supabase) отвечает медленно,
+    // не держим приложение в бесконечной загрузке — уходим в fallback на кеш.
+    const response = await fetchWithTimeout(apiPath("setup"), {
       method: "GET",
       redirect: "follow",
-    });
+    }, 15000);
     const res = await response.json();
     if (res.success) {
       localStorage.setItem("cached_setup", JSON.stringify(res));
@@ -186,10 +188,11 @@ async function refreshData(force) {
   const step3 = document.getElementById("step-3-checklist");
   if (step3 && step3.style.display !== "none") {
     try {
-      const response = await fetch(apiPath("checklist"), {
+      // Таймаут 15 сек: не даём «Обновлению» висеть бесконечно при медленном сервере.
+      const response = await fetchWithTimeout(apiPath("checklist"), {
         method: "GET",
         redirect: "follow",
-      });
+      }, 15000);
       const result = await response.json();
       if (result.success) {
         localStorage.setItem("cached_checklist", JSON.stringify(result.data));
@@ -319,10 +322,12 @@ async function startFullAudit() {
     new Date().toLocaleDateString("ru-RU");
 
   try {
-    const response = await fetch(apiPath("checklist"), {
+    // Таймаут 15 сек: при медленном сервере не держим экран
+    // «⏳ Загрузка вопросов чек-листа...» бесконечно — уходим в fallback на кеш.
+    const response = await fetchWithTimeout(apiPath("checklist"), {
       method: "GET",
       redirect: "follow",
-    });
+    }, 15000);
     const result = await response.json();
     if (result.success) {
       localStorage.setItem("cached_checklist", JSON.stringify(result.data));
@@ -957,7 +962,35 @@ function downloadChecklistPdf() {
       btn.textContent = "2. Скачать Акт в PDF 📄";
     }
     try {
-      window.print();
+      const printed = window.print();
+      // Убираем автоперезагрузку сразу после window.print(): на мобильных
+      // браузерах вызов не блокирует JS, и перезагрузка через 1 сек прерывала
+      // просмотр/скачивание акта (вариант Б). Теперь спрашиваем очистку
+      // чек-листа только после фактического закрытия окна печати (afterprint).
+      let cleanupAsked = false;
+      function askCleanup() {
+        if (cleanupAsked) return;
+        cleanupAsked = true;
+        setTimeout(function () {
+          if (confirm("Выгрузка завершена! Очистить чек-лист для нового обхода?")) {
+            location.reload();
+          }
+        }, 300);
+      }
+      // Основной путь: событие afterprint (десктоп-браузеры).
+      window.addEventListener("afterprint", askCleanup, { once: true });
+      // Страховка без принудительной перезагрузки: если событие afterprint
+      // не сработало (некоторые мобильные браузеры), через 3 секунды просто
+      // спрашиваем — страница перезагружается ТОЛЬКО по явному согласию.
+      setTimeout(function () {
+        if (!cleanupAsked) {
+          askCleanup();
+        }
+      }, 3000);
+      if (printed === false) {
+        // window.print() может вернуть false (например, окно печати недоступно)
+        askCleanup();
+      }
     } catch (e) {
       console.error("Ошибка вызова печати:", e);
       alert(
@@ -965,10 +998,6 @@ function downloadChecklistPdf() {
       );
       return;
     }
-    setTimeout(function () {
-      if (confirm("Выгрузка завершена! Очистить чек-лист для нового обхода?"))
-        location.reload();
-    }, 1000);
   });
 }
 
