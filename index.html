@@ -76,7 +76,16 @@
             body { background: #fff; padding: 0; margin: 0; }
             .container, .network-status, h2 { display: none !important; }
             #print-blank-zone { display: block !important; }
-            .pdf-page-break { page-break-before: always; }
+            /* Разрыв ТОЛЬКО перед страницами приложения, которые реально идут
+               после предыдущего контента: используем break-before: page только
+               при необходимости (не создаёт пустой лист в начале/конце) */
+            .pdf-page-break { break-before: auto; }
+            .pdf-page-break + .pdf-page-break { break-before: page; }
+            /* Убираем автоматические колонтитулы (адрес страницы = "источник")
+               и нумерацию, добавляемую браузером; нумерация остаётся там,
+               где она задана в самом бланке (Лист N) */
+            @page { margin: 15mm; }
+            @page { @bottom-center { content: none; } @bottom-right { content: none; } }
         }
     </style>
 </head>
@@ -91,18 +100,18 @@
     </div>
 
     <div id="step-1-form" class="card primary-border">
-        <div class="loading-overlay" id="setup-loading">⏳ Подключение к реестрам Google Таблиц...</div>
+        <div class="loading-overlay" id="setup-loading">⏳ Загрузка данных...</div>
         
         <div id="form-fields-wrapper" style="display:none;">
             <label for="inspector"><b>ФИО Проверяющего сотрудника:</b></label>
             <input type="text" id="inspector" placeholder="Например, Иванов И.И.">
             
-            <label for="object-select"><b>Объект строительства (Лист 1_Объекты):</b></label>
+            <label for="object-select"><b>Объект строительства:</b></label>
             <select id="object-select">
                 <option value="">-- Выберите объект --</option>
             </select>
             
-            <label for="contractor-select"><b>Подрядная организация (Лист 2_Подрядчики):</b></label>
+            <label for="contractor-select"><b>Подрядная организация:</b></label>
             <select id="contractor-select">
                 <option value="">-- Выберите подрядчика --</option>
             </select>
@@ -170,7 +179,13 @@
         <div>Подпись представителя подрядчика: _____________________</div>
     </div>
 
+    <div id="p-photos-summary" style="margin-top: 25px; font-size: 14px; font-weight: bold; color: #2c3e50;"></div>
+
     <div id="pdf-gallery-wrapper"></div>
+    <div id="pdf-signature-zone" style="margin-top: 40px; padding-top: 20px; display: flex; justify-content: space-between; font-size: 14px; page-break-inside: avoid;">
+        <div>Подпись проверяющего: _____________________</div>
+        <div>Подпись представителя подрядчика: _____________________</div>
+    </div>
 </div>
 
 <script src="app.js"></script>
