@@ -1,5 +1,5 @@
 // Адрес backend (Yandex Cloud Functions).
-// ВАЖНО: путь к API передаётся через query-параметр ?path=, т.к. Cloud Functions
+// ВАЖНО: путь к API передаётся через query-параметр ?path=, т.к. Cloud Functions.
 // не передаёт путь после ID функции (см. server/index.js — event.queryStringParameters.path).
 const FUNCTION_URL = "https://functions.yandexcloud.net/d4elvbg35d2cp08omcrr";
 function apiPath(path) {
