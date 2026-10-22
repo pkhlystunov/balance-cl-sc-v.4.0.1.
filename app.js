@@ -1,5 +1,5 @@
 // Адрес backend (Yandex Cloud Functions).
-// ВАЖНО: путь к API передаётся через query-параметр ?path=, т.к. Cloud Functions.
+// ВАЖНО: путь к API передаётся через query-параметр ?path=, т.к. Cloud Functions
 // не передаёт путь после ID функции (см. server/index.js — event.queryStringParameters.path).
 const FUNCTION_URL = "https://functions.yandexcloud.net/d4elvbg35d2cp08omcrr";
 function apiPath(path) {
@@ -13,6 +13,20 @@ function generateUuid() {
     const r = (Math.random() * 16) | 0;
     const v = c === "x" ? r : (r & 0x3) | 0x8;
     return v.toString(16);
+  });
+}
+
+// Формирует payload для отправки в реестр БЕЗ фотографий (base64).
+// Фото в реестре не сохраняются — они нужны только для печати PDF-акта
+// на устройстве. Большой объём base64 переполнял лимит/таймаут запроса
+// Cloud Functions, из-за чего акт не уходил в реестр и оставался в буфере.
+function buildAuditPayload(session) {
+  return Object.assign({}, session, {
+    results: (session.results || []).map(function (r) {
+      const copy = Object.assign({}, r);
+      delete copy.photos;
+      return copy;
+    }),
   });
 }
 
@@ -582,15 +596,16 @@ async function submitAuditWithOffline() {
   if (navigator.onLine) {
     btn.innerText = "⏳ Отправка...";
     try {
-      // Таймаут 90 сек: акты с фото (base64) — большой payload,
-      // 15 сек на мобильной сети не хватало.
+      // Таймаут 90 сек. В реестр отправляем данные БЕЗ фото (base64) —
+      // фото в реестре не хранятся, а большой payload с фото упирался
+      // в лимит/таймаут Cloud Functions и акт не уходил.
       const response = await fetchWithTimeout(
         apiPath("audits"),
         {
           method: "POST",
           // Без Content-Type: application/json — «простой» запрос,
           // браузер не шлёт preflight OPTIONS (обход CORS на стороне YC).
-          body: JSON.stringify(auditSession),
+          body: JSON.stringify(buildAuditPayload(auditSession)),
         },
         90000,
       );
@@ -755,14 +770,15 @@ async function syncOfflineQueue() {
         item.auditId = generateUuid();
       }
       try {
-        // Таймаут 90 сек: акты с фото (base64) — большой payload,
-        // 15 сек на мобильной сети не хватало, запрос обрывался.
+        // Таймаут 90 сек. В реестр отправляем данные БЕЗ фото (base64) —
+        // фото в реестре не хранятся, а большой payload с фото упирался
+        // в лимит/таймаут Cloud Functions и акт не выгружался из буфера.
         const response = await fetchWithTimeout(
           apiPath("audits"),
           {
             method: "POST",
             // Без Content-Type: application/json — «простой» запрос (обход preflight CORS).
-            body: JSON.stringify(item),
+            body: JSON.stringify(buildAuditPayload(item)),
           },
           90000,
         );
