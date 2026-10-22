@@ -32,6 +32,7 @@ function buildAuditPayload(session) {
 
 let auditSession = {
   inspector: "",
+  objectId: "", // <-- ДОБАВЛЕНО: поле для короткого ID объекта
   objectName: "",
   contractor: "",
   results: [],
@@ -233,7 +234,7 @@ function setupRefreshLongPress() {
 }
 
 document.addEventListener("DOMContentLoaded", async function () {
-  // Переносим старый буфер из localStorage в IndexedDB (если он был)
+  // Перенос старый буфер из localStorage в IndexedDB (если он был)
   await migrateLegacyOfflineQueue();
   updateNetworkStatus();
   // Проверяем буфер при старте приложения (вдруг сеть уже есть)
@@ -254,8 +255,11 @@ function populateSelects(res) {
     '<option value="">-- Выберите подрядчика --</option>';
 
   res.objects.forEach(function (obj) {
-    objectSelect.add(new Option(obj.id + " | " + obj.name, obj.name));
+    // ИСПРАВЛЕНО: value теперь содержит obj.id (короткое имя/код), 
+    // а отображаемый текст остается полным (obj.id + " | " + obj.name)
+    objectSelect.add(new Option(obj.id + " | " + obj.name, obj.id));
   });
+  
   res.contractors.forEach(function (contr) {
     contractorSelect.add(new Option(contr, contr));
   });
@@ -299,14 +303,20 @@ async function addNewContractor() {
 
 async function startFullAudit() {
   const insp = document.getElementById("inspector").value.trim();
-  const obj = document.getElementById("object-select").value;
+  const objSelect = document.getElementById("object-select");
+  const objValue = objSelect.value; // Это теперь obj.id (короткое имя)
+  const objText = objSelect.options[objSelect.selectedIndex].text; // Полное отображение
+  
   const contr = document.getElementById("contractor-select").value;
-  if (!insp || !obj || !contr) return alert("Заполните форму первого шага!");
+  
+  if (!insp || !objValue || !contr) return alert("Заполните форму первого шага!");
 
   auditSession.inspector = insp;
-  auditSession.objectName = obj;
+  auditSession.objectId = objValue; // <-- СОХРАНЯЕМ КОРОТКИЙ ID
+  auditSession.objectName = objText; // Сохраняем полное имя для отображения в PDF
   auditSession.contractor = contr;
   auditSession.results = [];
+  
   document.getElementById("pdf-btn").disabled = true;
   document.getElementById("submit-btn").disabled = false;
 
@@ -316,7 +326,7 @@ async function startFullAudit() {
   document.getElementById("step-1-form").style.display = "none";
 
   document.getElementById("audit-meta-insp").textContent = insp;
-  document.getElementById("audit-meta-obj").textContent = obj;
+  document.getElementById("audit-meta-obj").textContent = objText; // Показываем полное имя
   document.getElementById("audit-meta-contr").textContent = contr;
   document.getElementById("audit-meta-date").textContent =
     new Date().toLocaleDateString("ru-RU");
