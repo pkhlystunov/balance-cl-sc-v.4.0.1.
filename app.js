@@ -459,7 +459,7 @@ function renderGroupedChecklist(data) {
       photoContainer.id = "photo-area-" + q.id;
       photoContainer.style.display = "none";
       photoContainer.innerHTML =
-        '<label style="margin-top:5px; font-size:13px; color:#555;">Прикрепить фото дефекта (до 4-х штук):</label>' +
+        '<label style="margin-top:5px; font-size:13px; color:#555;">Прикрепить фото нарушения (до 4-х штук):</label>' +
         '<input type="file" id="file-' +
         q.id +
         '" accept="image/*" multiple style="font-size:13px;" onchange="handlePhotoUpload(this, ' +
@@ -891,6 +891,9 @@ function downloadChecklistPdf() {
 
   const galleryWrapper = document.getElementById("pdf-gallery-wrapper");
   galleryWrapper.innerHTML = "";
+  // Общий блок подписи после всех страниц фото (если фото есть)
+  const signatureZone = document.getElementById("pdf-signature-zone");
+  if (signatureZone) signatureZone.style.display = "none";
   let allUploadedPhotos = [];
   violationsOnly.forEach(function (item) {
     if (item.photos && item.photos.length > 0) {
@@ -904,8 +907,21 @@ function downloadChecklistPdf() {
     }
   });
 
+  const photosSummary = document.getElementById("p-photos-summary");
+  if (photosSummary) photosSummary.textContent = "";
+
   if (allUploadedPhotos.length > 0) {
     let photosPerPage = 4;
+    // Считаем фактическое количество страниц фото
+    const photoPages = Math.ceil(allUploadedPhotos.length / photosPerPage);
+    if (photosSummary) {
+      photosSummary.textContent =
+        "Приложение: Фотографии в количестве " +
+        allUploadedPhotos.length +
+        " шт. на " +
+        photoPages +
+        " листе(ах).";
+    }
     for (let i = 0; i < allUploadedPhotos.length; i += photosPerPage) {
       const pageDiv = document.createElement("div");
       pageDiv.className = "pdf-page-break";
@@ -930,8 +946,17 @@ function downloadChecklistPdf() {
         grid.appendChild(photoCard);
       });
       pageDiv.appendChild(grid);
+      // Строки для подписи внизу каждой страницы приложения с фото
+      const signRow = document.createElement("div");
+      signRow.style.cssText =
+        "margin-top:30px; padding-top:15px; display:flex; justify-content:space-between; font-size:14px; page-break-inside:avoid;";
+      signRow.innerHTML =
+        "<div>Подпись проверяющего: _____________________</div>" +
+        "<div>Подпись представителя подрядчика: _____________________</div>";
+      pageDiv.appendChild(signRow);
       galleryWrapper.appendChild(pageDiv);
     }
+    if (signatureZone) signatureZone.style.display = "flex";
   }
 
   // Стабильная печать: ждём полной загрузки всех фото (base64-изображения
