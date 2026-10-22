@@ -31,8 +31,10 @@ async function loadData() {
         const setupRes = await setupResponse.json();
         
         if (setupRes && setupRes.success) {
+            // Очищаем карту перед заполнением
+            shortObjectsMap = {};
             setupRes.objects.forEach(function(obj) {
-                // Запоминаем: связку id (короткое имя) и name (полное название)
+                // Запоминаем: связку name (полное название) -> id (короткое имя)
                 shortObjectsMap[obj.name] = obj.id;
             });
         }
@@ -272,10 +274,13 @@ function renderDoubleCharts(data) {
         sortedObjects.forEach(function(item) { if(item.count > maxObjCount) maxObjCount = item.count; });
         
         sortedObjects.forEach(function(item) {
+            // ИСПРАВЛЕНО: Используем короткое имя из карты, если оно есть
+            let displayName = shortObjectsMap[item.name] || item.name;
+            
             const percent = maxObjCount > 0 ? (item.count / maxObjCount) * 100 : 0;
             const row = document.createElement('div');
             row.className = "chart-row";
-            row.innerHTML = '<div class="chart-label" title="' + item.name + '">' + item.name + '</div>' +
+            row.innerHTML = '<div class="chart-label" title="' + item.name + '">' + displayName + '</div>' +
                             '<div class="chart-bar-wrapper">' +
                                 '<div class="chart-bar-fill" style="width: ' + percent + '%; background:#3498db;"></div>' +
                             '</div>' +
@@ -326,10 +331,13 @@ function renderDoubleCharts(data) {
         sortedClosedObjects.forEach(function(item) { if(item.count > maxClosedObjCount) maxClosedObjCount = item.count; });
 
         sortedClosedObjects.forEach(function(item) {
+            // ИСПРАВЛЕНО: Используем короткое имя из карты, если оно есть
+            let displayName = shortObjectsMap[item.name] || item.name;
+
             const percent = maxClosedObjCount > 0 ? (item.count / maxClosedObjCount) * 100 : 0;
             const row = document.createElement('div');
             row.className = "chart-row";
-            row.innerHTML = '<div class="chart-label" title="' + item.name + '">' + item.name + '</div>' +
+            row.innerHTML = '<div class="chart-label" title="' + item.name + '">' + displayName + '</div>' +
                             '<div class="chart-bar-wrapper">' +
                                 '<div class="chart-bar-fill" style="width: ' + percent + '%; background:#2ecc71;"></div>' +
                             '</div>' +
