@@ -1,4 +1,4 @@
-const CACHE_NAME = 'otipb-v83';
+const CACHE_NAME = 'otipb-v84';
 const ASSETS = ['./', './index.html', './app.js', './style.css', './manifest.json'];
 self.addEventListener('install', e => { self.skipWaiting(); e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(ASSETS))); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(keys => Promise.all(keys.map(k => { if (k !== CACHE_NAME) return caches.delete(k); }))).then(() => self.clients.claim())); });
