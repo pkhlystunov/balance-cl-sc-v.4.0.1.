@@ -891,9 +891,6 @@ function downloadChecklistPdf() {
 
   const galleryWrapper = document.getElementById("pdf-gallery-wrapper");
   galleryWrapper.innerHTML = "";
-  // Общий блок подписи после всех страниц фото (если фото есть)
-  const signatureZone = document.getElementById("pdf-signature-zone");
-  if (signatureZone) signatureZone.style.display = "none";
   let allUploadedPhotos = [];
   violationsOnly.forEach(function (item) {
     if (item.photos && item.photos.length > 0) {
@@ -946,17 +943,8 @@ function downloadChecklistPdf() {
         grid.appendChild(photoCard);
       });
       pageDiv.appendChild(grid);
-      // Строки для подписи внизу каждой страницы приложения с фото
-      const signRow = document.createElement("div");
-      signRow.style.cssText =
-        "margin-top:30px; padding-top:15px; display:flex; justify-content:space-between; font-size:14px; page-break-inside:avoid;";
-      signRow.innerHTML =
-        "<div>Подпись проверяющего: _____________________</div>" +
-        "<div>Подпись представителя подрядчика: _____________________</div>";
-      pageDiv.appendChild(signRow);
       galleryWrapper.appendChild(pageDiv);
     }
-    if (signatureZone) signatureZone.style.display = "flex";
   }
 
   // Стабильная печать: ждём полной загрузки всех фото (base64-изображения
