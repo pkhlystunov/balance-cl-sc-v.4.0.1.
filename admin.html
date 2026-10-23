@@ -199,22 +199,28 @@
         </div>
     </div>
 
-    <!-- ВКЛАДКА 2: ГЛУБОКАЯ АНАЛИТИКА (ОБЪЕКТЫ И ПОДРЯДЧИКИ) -->
-    <div id="analytics-tab" class="tab-content">
-        <div class="widgets-grid">
-            <div class="widget-card widget-primary">
-                <h3>Проведено инспекций за период</h3>
-                <div id="w-checks">0</div>
-            </div>
-            <div class="widget-card widget-danger">
-                <h3>Выявлено нарушений за период</h3>
-                <div id="w-violations">0</div>
-            </div>
-            <div class="widget-card widget-success">
-                <h3>Закрыто предписаний за период</h3>
-                <div id="w-closed">0</div>
-            </div>
-        </div>
+<!-- Блок статистики - 2 ряда по 2 графы -->
+<div class="stats-container" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+    <!-- Ряд 1: Выявлено -->
+    <div style="background: #3498db; color: white; padding: 15px; border-radius: 8px; text-align: center;">
+        <div style="font-size: 14px; opacity: 0.9;">📋 Выдано актов</div>
+        <div id="w-checks" style="font-size: 32px; font-weight: bold; margin-top: 5px;">0</div>
+    </div>
+    <div style="background: #e74c3c; color: white; padding: 15px; border-radius: 8px; text-align: center;">
+        <div style="font-size: 14px; opacity: 0.9;">⚠️ Выявлено нарушений</div>
+        <div id="w-violations" style="font-size: 32px; font-weight: bold; margin-top: 5px;">0</div>
+    </div>
+    
+    <!-- Ряд 2: Закрыто -->
+    <div style="background: #27ae60; color: white; padding: 15px; border-radius: 8px; text-align: center;">
+        <div style="font-size: 14px; opacity: 0.9;">✅ Закрыто актов</div>
+        <div id="w-closed-checks" style="font-size: 32px; font-weight: bold; margin-top: 5px;">0</div>
+    </div>
+    <div style="background: #2ecc71; color: white; padding: 15px; border-radius: 8px; text-align: center;">
+        <div style="font-size: 14px; opacity: 0.9;">✅ Закрыто нарушений</div>
+        <div id="w-closed-violations" style="font-size: 32px; font-weight: bold; margin-top: 5px;">0</div>
+    </div>
+</div>
         
         <!-- ГРАФИК №1: АНТИРЕЙТИНГ СТРОИТЕЛЬНЫХ ПЛОЩАДОК -->
         <div class="chart-box" style="border-left: 6px solid #3498db;">
