@@ -1,44 +1,44 @@
 // Ядро ситуационного центра ОТиПБ v12.
-// Адрес backend (Yandex Cloud Functions).
-// ВАЖНО: путь к API передаётся через query-параметр ?path=, т.к. Cloud Functions
-// не передаёт путь после ID функции (см. server/index.js — event.queryStringParameters.path).
 const FUNCTION_URL = "https://functions.yandexcloud.net/d4elvbg35d2cp08omcrr";
 function apiPath(path) {
     return FUNCTION_URL + "?path=" + encodeURIComponent("/api/" + path);
 }
 
 let rawData = [];
-let shortObjectsMap = {}; // Карта сопоставления: "Полное имя" -> "Короткий ID (Колонка А)"
+let shortObjectsMap = {}; 
 
 function switchTab(tabId) {
-    document.querySelectorAll('.tab-content').forEach(function(el) { el.classList.remove('active'); });
-    document.querySelectorAll('.tab-btn').forEach(function(el) { el.classList.remove('active'); });
+    document.querySelectorAll('.tab-content').forEach(function(el) { 
+        el.classList.remove('active'); 
+    });
+    document.querySelectorAll('.tab-btn').forEach(function(el) { 
+        el.classList.remove('active'); 
+    });
     
     document.getElementById(tabId).classList.add('active');
+    
     if (tabId === 'registry-tab') {
         document.getElementById('btn-registry').classList.add('active');
     } else {
         document.getElementById('btn-analytics').classList.add('active');
     }
-    applyFilters(); 
+    
+    applyFilters();
 }
 
 async function loadData() {
     const statusText = document.getElementById('sync-status');
     try {
-        // Шаг 1: Сначала подтягиваем справочник объектов, чтобы знать короткие имена
         const setupResponse = await fetch(apiPath("setup"), { method: "GET", redirect: "follow" });
         const setupRes = await setupResponse.json();
         
         if (setupRes && setupRes.success) {
             shortObjectsMap = {};
             setupRes.objects.forEach(function(obj) {
-                // Запоминаем связку: полное имя (в нижнем регистре для надежности) -> короткое имя
                 shortObjectsMap[obj.name.toLowerCase()] = obj.id;
             });
         }
 
-        // Шаг 2: Скачиваем реестр проверок инспекторов
         const response = await fetch(apiPath("audits"), { method: "GET", redirect: "follow" });
         const res = await response.json();
         
@@ -104,6 +104,7 @@ function applyFilters() {
 
 function renderRegistry(data) {
     const tbody = document.getElementById('registry-tbody');
+    if (!tbody) return;
     tbody.innerHTML = "";
 
     if (data.length === 0) {
@@ -138,7 +139,6 @@ function renderRegistry(data) {
     });
 }
 
-// Закрытие предписания (только админка)
 async function closeAudit(id) {
     if (!confirm("Закрыть предписание?")) return;
     try {
@@ -159,7 +159,6 @@ async function closeAudit(id) {
     }
 }
 
-// Открытие предписания обратно (только админка)
 async function reopenAudit(id) {
     if (!confirm("Открыть предписание обратно?")) return;
     try {
@@ -180,7 +179,6 @@ async function reopenAudit(id) {
     }
 }
 
-// Удаление предписания (только админка)
 async function deleteAudit(id) {
     if (!confirm("Удалить предписание навсегда? Это действие необратимо.")) return;
     try {
@@ -201,7 +199,6 @@ async function deleteAudit(id) {
     }
 }
 
-// Кнопка «Обновить» — перезагрузка реестра и аналитики
 async function refreshData() {
     const btn = document.getElementById('btn-refresh');
     const statusText = document.getElementById('sync-status');
@@ -212,167 +209,166 @@ async function refreshData() {
     if (btn) { btn.disabled = false; btn.textContent = "🔄 Обновить"; }
 }
 
-// СБОР СТАТИСТИКИ И ОТРИСОВКА ГИСТОГРАММ
 function renderDoubleCharts(data) {
-    // ИСПРАВЛЕНО: Теперь считаем не количество актов, а количество нарушений
-    let totalChecks = 0; // Количество проверок (актов)
-    let totalViolations = 0; // Количество выявленных нарушений
-    let totalClosedChecks = 0; // Количество закрытых проверок
-    let totalClosedViolations = 0; // Количество закрытых нарушений
+    let totalChecks = 0;
+    let totalViolations = 0;
+    let totalClosedChecks = 0;
+    let totalClosedViolations = 0;
     
-    const objectsMap = {};     // Карта для Объектов (выявленные нарушения)
-    const contractorsMap = {}; // Карта для Подрядчиков (выявленные нарушения)
-    const closedObjectsMap = {};     // Карта закрытых нарушений по Объектам
-    const closedContractorsMap = {}; // Карта закрытых нарушений по Подрядчикам
+    const objectsMap = {};
+    const contractorsMap = {};
+    const closedObjectsMap = {};
+    const closedContractorsMap = {};
 
     data.forEach(function(r) {
         totalChecks++;
         totalViolations += r.vCount;
 
-        // ИСПРАВЛЕНО: Берем короткое имя прямо из ответа сервера (object_short_name).
         let shortPrefix = r.object_short_name || shortObjectsMap[r.object ? r.object.toLowerCase() : ""] || "Акт";
-        
         let uniqueContractorKey = "[" + shortPrefix + "] " + r.contractor;
 
         if (r.vCount > 0) {
-            // Считаем дефекты по Объектам
             if (!objectsMap[r.object]) objectsMap[r.object] = 0;
             objectsMap[r.object] += r.vCount;
 
-            // Уникальный ключ для группировки: "[Короткий_Объект] Название Подрядчика"
             if (!contractorsMap[uniqueContractorKey]) contractorsMap[uniqueContractorKey] = 0;
             contractorsMap[uniqueContractorKey] += r.vCount;
         }
 
-        // ИСПРАВЛЕНО: Считаем закрытые нарушения (а не акты)
         if (r.isClosed) {
             totalClosedChecks++;
-            totalClosedViolations += r.vCount; // Суммируем нарушения закрытых актов
+            totalClosedViolations += r.vCount;
 
             if (!closedObjectsMap[r.object]) closedObjectsMap[r.object] = 0;
-            closedObjectsMap[r.object] += r.vCount; // Теперь это количество закрытых нарушений
+            closedObjectsMap[r.object] += r.vCount;
 
             if (!closedContractorsMap[uniqueContractorKey]) closedContractorsMap[uniqueContractorKey] = 0;
-            closedContractorsMap[uniqueContractorKey] += r.vCount; // Теперь это количество закрытых нарушений
+            closedContractorsMap[uniqueContractorKey] += r.vCount;
         }
     });
 
-    // Обновляем 4 графы статистики
-    document.getElementById('w-checks').textContent = totalChecks;
-    document.getElementById('w-violations').textContent = totalViolations;
-    document.getElementById('w-closed-checks').textContent = totalClosedChecks;
-    document.getElementById('w-closed-violations').textContent = totalClosedViolations;
+    const elChecks = document.getElementById('w-checks');
+    const elViolations = document.getElementById('w-violations');
+    const elClosedChecks = document.getElementById('w-closed-checks');
+    const elClosedViolations = document.getElementById('w-closed-violations');
 
-    // --- ОТРИСОВКА ГИСТОГРАММЫ №1: ОБЪЕКТЫ (Выявленные нарушения) ---
+    if (elChecks) elChecks.textContent = totalChecks;
+    if (elViolations) elViolations.textContent = totalViolations;
+    if (elClosedChecks) elClosedChecks.textContent = totalClosedChecks;
+    if (elClosedViolations) elClosedViolations.textContent = totalClosedViolations;
+
+    // --- ГИСТОГРАММА 1: ОБЪЕКТЫ (Выявленные) ---
     const objChartBody = document.getElementById('objects-chart-body');
-    objChartBody.innerHTML = "";
-    
-    const sortedObjects = Object.keys(objectsMap).map(function(name) {
-        return { name: name, count: objectsMap[name] };
-    }).sort(function(a, b) { return b.count - a.count; });
+    if (objChartBody) {
+        objChartBody.innerHTML = "";
+        const sortedObjects = Object.keys(objectsMap).map(function(name) {
+            return { name: name, count: objectsMap[name] };
+        }).sort(function(a, b) { return b.count - a.count; });
 
-    if (sortedObjects.length === 0) {
-        objChartBody.innerHTML = "<div style='text-align:center; color:#27ae60; font-weight:bold; padding:15px;'>Нарушений на объектах не зафиксировано!</div>";
-    } else {
-        let maxObjCount = 0;
-        sortedObjects.forEach(function(item) { if(item.count > maxObjCount) maxObjCount = item.count; });
-        
-        sortedObjects.forEach(function(item) {
-            let displayName = shortObjectsMap[item.name.toLowerCase()] || item.name;
+        if (sortedObjects.length === 0) {
+            objChartBody.innerHTML = "<div style='text-align:center; color:#27ae60; font-weight:bold; padding:15px;'>Нарушений на объектах не зафиксировано!</div>";
+        } else {
+            let maxObjCount = 0;
+            sortedObjects.forEach(function(item) { if(item.count > maxObjCount) maxObjCount = item.count; });
             
-            const percent = maxObjCount > 0 ? (item.count / maxObjCount) * 100 : 0;
-            const row = document.createElement('div');
-            row.className = "chart-row";
-            row.innerHTML = '<div class="chart-label" title="' + item.name + '">' + displayName + '</div>' +
-                            '<div class="chart-bar-wrapper">' +
-                                '<div class="chart-bar-fill" style="width: ' + percent + '%; background:#3498db;"></div>' +
-                            '</div>' +
-                            '<div class="chart-value">' + item.count + ' шт.</div>';
-            objChartBody.appendChild(row);
-        });
+            sortedObjects.forEach(function(item) {
+                let displayName = shortObjectsMap[item.name.toLowerCase()] || item.name;
+                const percent = maxObjCount > 0 ? (item.count / maxObjCount) * 100 : 0;
+                const row = document.createElement('div');
+                row.className = "chart-row";
+                row.innerHTML = '<div class="chart-label" title="' + item.name + '">' + displayName + '</div>' +
+                                '<div class="chart-bar-wrapper">' +
+                                    '<div class="chart-bar-fill" style="width: ' + percent + '%; background:#3498db;"></div>' +
+                                '</div>' +
+                                '<div class="chart-value">' + item.count + ' шт.</div>';
+                objChartBody.appendChild(row);
+            });
+        }
     }
 
-    // --- ОТРИСОВКА ГИСТОГРАММЫ №2: ПОДРЯДЧИКИ (Выявленные нарушения) ---
+    // --- ГИСТОГРАММА 2: ПОДРЯДЧИКИ (Выявленные) ---
     const contrChartBody = document.getElementById('contractors-chart-body');
-    contrChartBody.innerHTML = "";
+    if (contrChartBody) {
+        contrChartBody.innerHTML = "";
+        const sortedContractors = Object.keys(contractorsMap).map(function(key) {
+            return { label: key, count: contractorsMap[key] };
+        }).sort(function(a, b) { return b.count - a.count; });
 
-    const sortedContractors = Object.keys(contractorsMap).map(function(key) {
-        return { label: key, count: contractorsMap[key] };
-    }).sort(function(a, b) { return b.count - a.count; });
-
-    if (sortedContractors.length === 0) {
-        contrChartBody.innerHTML = "<div style='text-align:center; color:#27ae60; font-weight:bold; padding:15px;'>Нарушений подрядных организаций не зафиксировано!</div>";
-    } else {
-        let maxContrCount = 0;
-        sortedContractors.forEach(function(item) { if(item.count > maxContrCount) maxContrCount = item.count; });
-        
-        sortedContractors.forEach(function(item) {
-            const percent = maxContrCount > 0 ? (item.count / maxContrCount) * 100 : 0;
-            const row = document.createElement('div');
-            row.className = "chart-row";
-            row.innerHTML = '<div class="chart-label" title="' + item.label + '">' + item.label + '</div>' +
-                            '<div class="chart-bar-wrapper">' +
-                                '<div class="chart-bar-fill" style="width: ' + percent + '%; background:#e74c3c;"></div>' +
-                            '</div>' +
-                            '<div class="chart-value">' + item.count + ' шт.</div>';
-            contrChartBody.appendChild(row);
-        });
+        if (sortedContractors.length === 0) {
+            contrChartBody.innerHTML = "<div style='text-align:center; color:#27ae60; font-weight:bold; padding:15px;'>Нарушений подрядных организаций не зафиксировано!</div>";
+        } else {
+            let maxContrCount = 0;
+            sortedContractors.forEach(function(item) { if(item.count > maxContrCount) maxContrCount = item.count; });
+            
+            sortedContractors.forEach(function(item) {
+                const percent = maxContrCount > 0 ? (item.count / maxContrCount) * 100 : 0;
+                const row = document.createElement('div');
+                row.className = "chart-row";
+                row.innerHTML = '<div class="chart-label" title="' + item.label + '">' + item.label + '</div>' +
+                                '<div class="chart-bar-wrapper">' +
+                                    '<div class="chart-bar-fill" style="width: ' + percent + '%; background:#e74c3c;"></div>' +
+                                '</div>' +
+                                '<div class="chart-value">' + item.count + ' шт.</div>';
+                contrChartBody.appendChild(row);
+            });
+        }
     }
 
-    // --- ОТРИСОВКА ГИСТОГРАММЫ №3: ЗАКРЫТЫЕ НАРУШЕНИЯ ПО ОБЪЕКТАМ ---
+    // --- ГИСТОГРАММА 3: ЗАКРЫТЫЕ НАРУШЕНИЯ ПО ОБЪЕКТАМ ---
     const closedObjChartBody = document.getElementById('closed-objects-chart-body');
-    closedObjChartBody.innerHTML = "";
+    if (closedObjChartBody) {
+        closedObjChartBody.innerHTML = "";
+        const sortedClosedObjects = Object.keys(closedObjectsMap).map(function(name) {
+            return { name: name, count: closedObjectsMap[name] };
+        }).sort(function(a, b) { return b.count - a.count; });
 
-    const sortedClosedObjects = Object.keys(closedObjectsMap).map(function(name) {
-        return { name: name, count: closedObjectsMap[name] };
-    }).sort(function(a, b) { return b.count - a.count; });
+        if (sortedClosedObjects.length === 0) {
+            closedObjChartBody.innerHTML = "<div style='text-align:center; color:#27ae60; font-weight:bold; padding:15px;'>Закрытых нарушений по объектам нет</div>";
+        } else {
+            let maxClosedObjCount = 0;
+            sortedClosedObjects.forEach(function(item) { if(item.count > maxClosedObjCount) maxClosedObjCount = item.count; });
 
-    if (sortedClosedObjects.length === 0) {
-        closedObjChartBody.innerHTML = "<div style='text-align:center; color:#27ae60; font-weight:bold; padding:15px;'>Закрытых нарушений по объектам нет</div>";
-    } else {
-        let maxClosedObjCount = 0;
-        sortedClosedObjects.forEach(function(item) { if(item.count > maxClosedObjCount) maxClosedObjCount = item.count; });
-
-        sortedClosedObjects.forEach(function(item) {
-            let displayName = shortObjectsMap[item.name.toLowerCase()] || item.name;
-
-            const percent = maxClosedObjCount > 0 ? (item.count / maxClosedObjCount) * 100 : 0;
-            const row = document.createElement('div');
-            row.className = "chart-row";
-            row.innerHTML = '<div class="chart-label" title="' + item.name + '">' + displayName + '</div>' +
-                            '<div class="chart-bar-wrapper">' +
-                                '<div class="chart-bar-fill" style="width: ' + percent + '%; background:#2ecc71;"></div>' +
-                            '</div>' +
-                            '<div class="chart-value">' + item.count + ' шт.</div>';
-            closedObjChartBody.appendChild(row);
-        });
+            sortedClosedObjects.forEach(function(item) {
+                let displayName = shortObjectsMap[item.name.toLowerCase()] || item.name;
+                const percent = maxClosedObjCount > 0 ? (item.count / maxClosedObjCount) * 100 : 0;
+                const row = document.createElement('div');
+                row.className = "chart-row";
+                row.innerHTML = '<div class="chart-label" title="' + item.name + '">' + displayName + '</div>' +
+                                '<div class="chart-bar-wrapper">' +
+                                    '<div class="chart-bar-fill" style="width: ' + percent + '%; background:#2ecc71;"></div>' +
+                                '</div>' +
+                                '<div class="chart-value">' + item.count + ' шт.</div>';
+                closedObjChartBody.appendChild(row);
+            });
+        }
     }
 
-    // --- ОТРИСОВКА ГИСТОГРАММЫ №4: ЗАКРЫТЫЕ НАРУШЕНИЯ ПО ПОДРЯДЧИКАМ ---
+    // --- ГИСТОГРАММА 4: ЗАКРЫТЫЕ НАРУШЕНИЯ ПО ПОДРЯДЧИКАМ ---
     const closedContrChartBody = document.getElementById('closed-contractors-chart-body');
-    closedContrChartBody.innerHTML = "";
+    if (closedContrChartBody) {
+        closedContrChartBody.innerHTML = "";
+        const sortedClosedContractors = Object.keys(closedContractorsMap).map(function(key) {
+            return { label: key, count: closedContractorsMap[key] };
+        }).sort(function(a, b) { return b.count - a.count; });
 
-    const sortedClosedContractors = Object.keys(closedContractorsMap).map(function(key) {
-        return { label: key, count: closedContractorsMap[key] };
-    }).sort(function(a, b) { return b.count - a.count; });
+        if (sortedClosedContractors.length === 0) {
+            closedContrChartBody.innerHTML = "<div style='text-align:center; color:#27ae60; font-weight:bold; padding:15px;'>Закрытых нарушений по подрядчикам нет</div>";
+        } else {
+            let maxClosedContrCount = 0;
+            sortedClosedContractors.forEach(function(item) { if(item.count > maxClosedContrCount) maxClosedContrCount = item.count; });
 
-    if (sortedClosedContractors.length === 0) {
-        closedContrChartBody.innerHTML = "<div style='text-align:center; color:#27ae60; font-weight:bold; padding:15px;'>Закрытых нарушений по подрядчикам нет</div>";
-    } else {
-        let maxClosedContrCount = 0;
-        sortedClosedContractors.forEach(function(item) { if(item.count > maxClosedContrCount) maxClosedContrCount = item.count; });
-
-        sortedClosedContractors.forEach(function(item) {
-            const percent = maxClosedContrCount > 0 ? (item.count / maxClosedContrCount) * 100 : 0;
-            const row = document.createElement('div');
-            row.className = "chart-row";
-            row.innerHTML = '<div class="chart-label" title="' + item.label + '">' + item.label + '</div>' +
-                            '<div class="chart-bar-wrapper">' +
-                                '<div class="chart-bar-fill" style="width: ' + percent + '%; background:#2ecc71;"></div>' +
-                            '</div>' +
-                            '<div class="chart-value">' + item.count + ' шт.</div>';
-            closedContrChartBody.appendChild(row);
-        });
+            sortedClosedContractors.forEach(function(item) {
+                const percent = maxClosedContrCount > 0 ? (item.count / maxClosedContrCount) * 100 : 0;
+                const row = document.createElement('div');
+                row.className = "chart-row";
+                row.innerHTML = '<div class="chart-label" title="' + item.label + '">' + item.label + '</div>' +
+                                '<div class="chart-bar-wrapper">' +
+                                    '<div class="chart-bar-fill" style="width: ' + percent + '%; background:#2ecc71;"></div>' +
+                                '</div>' +
+                                '<div class="chart-value">' + item.count + ' шт.</div>';
+                closedContrChartBody.appendChild(row);
+            });
+        }
     }
 }
 
