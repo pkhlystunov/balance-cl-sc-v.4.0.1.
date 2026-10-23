@@ -199,29 +199,31 @@
         </div>
     </div>
 
-<!-- Блок статистики - 2 ряда по 2 графы -->
-<div class="stats-container" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
-    <!-- Ряд 1: Выявлено -->
-    <div style="background: #3498db; color: white; padding: 15px; border-radius: 8px; text-align: center;">
-        <div style="font-size: 14px; opacity: 0.9;">📋 Выдано актов</div>
-        <div id="w-checks" style="font-size: 32px; font-weight: bold; margin-top: 5px;">0</div>
-    </div>
-    <div style="background: #e74c3c; color: white; padding: 15px; border-radius: 8px; text-align: center;">
-        <div style="font-size: 14px; opacity: 0.9;">⚠️ Выявлено нарушений</div>
-        <div id="w-violations" style="font-size: 32px; font-weight: bold; margin-top: 5px;">0</div>
-    </div>
-    
-    <!-- Ряд 2: Закрыто -->
-    <div style="background: #27ae60; color: white; padding: 15px; border-radius: 8px; text-align: center;">
-        <div style="font-size: 14px; opacity: 0.9;">✅ Закрыто актов</div>
-        <div id="w-closed-checks" style="font-size: 32px; font-weight: bold; margin-top: 5px;">0</div>
-    </div>
-    <div style="background: #2ecc71; color: white; padding: 15px; border-radius: 8px; text-align: center;">
-        <div style="font-size: 14px; opacity: 0.9;">✅ Закрыто нарушений</div>
-        <div id="w-closed-violations" style="font-size: 32px; font-weight: bold; margin-top: 5px;">0</div>
-    </div>
-</div>
-        
+    <!-- ВКЛАДКА 2: АНАЛИТИКА И ГРАФИКИ -->
+    <div id="analytics-tab" class="tab-content">
+        <!-- Блок статистики - 2 ряда по 2 графы -->
+        <div class="stats-container" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+            <!-- Ряд 1: Выявлено -->
+            <div style="background: #3498db; color: white; padding: 15px; border-radius: 8px; text-align: center;">
+                <div style="font-size: 14px; opacity: 0.9;">📋 Выдано актов</div>
+                <div id="w-checks" style="font-size: 32px; font-weight: bold; margin-top: 5px;">0</div>
+            </div>
+            <div style="background: #e74c3c; color: white; padding: 15px; border-radius: 8px; text-align: center;">
+                <div style="font-size: 14px; opacity: 0.9;">⚠️ Выявлено нарушений</div>
+                <div id="w-violations" style="font-size: 32px; font-weight: bold; margin-top: 5px;">0</div>
+            </div>
+            
+            <!-- Ряд 2: Закрыто -->
+            <div style="background: #27ae60; color: white; padding: 15px; border-radius: 8px; text-align: center;">
+                <div style="font-size: 14px; opacity: 0.9;">✅ Закрыто актов</div>
+                <div id="w-closed-checks" style="font-size: 32px; font-weight: bold; margin-top: 5px;">0</div>
+            </div>
+            <div style="background: #2ecc71; color: white; padding: 15px; border-radius: 8px; text-align: center;">
+                <div style="font-size: 14px; opacity: 0.9;">✅ Закрыто нарушений</div>
+                <div id="w-closed-violations" style="font-size: 32px; font-weight: bold; margin-top: 5px;">0</div>
+            </div>
+        </div>
+            
         <!-- ГРАФИК №1: АНТИРЕЙТИНГ СТРОИТЕЛЬНЫХ ПЛОЩАДОК -->
         <div class="chart-box" style="border-left: 6px solid #3498db;">
             <h3 style="margin: 0; font-size: 15px; color: var(--primary);">Антирейтинг Объектов строительства (Всего замечаний)</h3>
