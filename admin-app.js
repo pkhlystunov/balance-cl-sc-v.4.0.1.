@@ -144,7 +144,6 @@ async function closeAudit(id) {
     try {
         const response = await fetch(apiPath("audits/" + id + "/close"), {
             method: "POST",
-            // Без Content-Type: application/json — «простой» запрос (обход preflight CORS).
             redirect: "follow"
         });
         const res = await response.json();
@@ -166,7 +165,6 @@ async function reopenAudit(id) {
     try {
         const response = await fetch(apiPath("audits/" + id + "/reopen"), {
             method: "POST",
-            // Без Content-Type: application/json — «простой» запрос (обход preflight CORS).
             redirect: "follow"
         });
         const res = await response.json();
@@ -186,8 +184,6 @@ async function reopenAudit(id) {
 async function deleteAudit(id) {
     if (!confirm("Удалить предписание навсегда? Это действие необратимо.")) return;
     try {
-        // DELETE заменён на POST ?method=DELETE — «простой» запрос без preflight OPTIONS
-        // (Yandex Cloud Functions не передаёт OPTIONS в код функции, CORS на платформе выключен).
         const response = await fetch(apiPath("audits/" + id) + "&method=DELETE", {
             method: "POST",
             redirect: "follow"
@@ -218,20 +214,22 @@ async function refreshData() {
 
 // СБОР СТАТИСТИКИ И ОТРИСОВКА ГИСТОГРАММ
 function renderDoubleCharts(data) {
-    let totalViolations = 0;
-    let totalClosed = 0;
+    // ИСПРАВЛЕНО: Теперь считаем не количество актов, а количество нарушений
+    let totalChecks = 0; // Количество проверок (актов)
+    let totalViolations = 0; // Количество выявленных нарушений
+    let totalClosedChecks = 0; // Количество закрытых проверок
+    let totalClosedViolations = 0; // Количество закрытых нарушений
     
-    const objectsMap = {};     // Карта для Объектов
-    const contractorsMap = {}; // Карта для Подрядчиков
-    const closedObjectsMap = {};     // Карта закрытых по Объектам
-    const closedContractorsMap = {}; // Карта закрытых по Подрядчикам
+    const objectsMap = {};     // Карта для Объектов (выявленные нарушения)
+    const contractorsMap = {}; // Карта для Подрядчиков (выявленные нарушения)
+    const closedObjectsMap = {};     // Карта закрытых нарушений по Объектам
+    const closedContractorsMap = {}; // Карта закрытых нарушений по Подрядчикам
 
     data.forEach(function(r) {
+        totalChecks++;
         totalViolations += r.vCount;
-        if (r.isClosed) totalClosed++;
 
         // ИСПРАВЛЕНО: Берем короткое имя прямо из ответа сервера (object_short_name).
-        // Если его нет (старые данные), пробуем найти по карте.
         let shortPrefix = r.object_short_name || shortObjectsMap[r.object ? r.object.toLowerCase() : ""] || "Акт";
         
         let uniqueContractorKey = "[" + shortPrefix + "] " + r.contractor;
@@ -246,21 +244,26 @@ function renderDoubleCharts(data) {
             contractorsMap[uniqueContractorKey] += r.vCount;
         }
 
-        // Считаем закрытые предписания по Объектам и Подрядчикам
+        // ИСПРАВЛЕНО: Считаем закрытые нарушения (а не акты)
         if (r.isClosed) {
+            totalClosedChecks++;
+            totalClosedViolations += r.vCount; // Суммируем нарушения закрытых актов
+
             if (!closedObjectsMap[r.object]) closedObjectsMap[r.object] = 0;
-            closedObjectsMap[r.object]++;
+            closedObjectsMap[r.object] += r.vCount; // Теперь это количество закрытых нарушений
 
             if (!closedContractorsMap[uniqueContractorKey]) closedContractorsMap[uniqueContractorKey] = 0;
-            closedContractorsMap[uniqueContractorKey]++;
+            closedContractorsMap[uniqueContractorKey] += r.vCount; // Теперь это количество закрытых нарушений
         }
     });
 
-    document.getElementById('w-checks').textContent = data.length;
+    // Обновляем 4 графы статистики
+    document.getElementById('w-checks').textContent = totalChecks;
     document.getElementById('w-violations').textContent = totalViolations;
-    document.getElementById('w-closed').textContent = totalClosed;
+    document.getElementById('w-closed-checks').textContent = totalClosedChecks;
+    document.getElementById('w-closed-violations').textContent = totalClosedViolations;
 
-    // --- ОТРИСОВКА ГИСТОГРАММЫ №1: ОБЪЕКТЫ ---
+    // --- ОТРИСОВКА ГИСТОГРАММЫ №1: ОБЪЕКТЫ (Выявленные нарушения) ---
     const objChartBody = document.getElementById('objects-chart-body');
     objChartBody.innerHTML = "";
     
@@ -275,7 +278,6 @@ function renderDoubleCharts(data) {
         sortedObjects.forEach(function(item) { if(item.count > maxObjCount) maxObjCount = item.count; });
         
         sortedObjects.forEach(function(item) {
-            // ИСПРАВЛЕНО: Используем короткое имя из карты или берем из БД, если есть
             let displayName = shortObjectsMap[item.name.toLowerCase()] || item.name;
             
             const percent = maxObjCount > 0 ? (item.count / maxObjCount) * 100 : 0;
@@ -290,7 +292,7 @@ function renderDoubleCharts(data) {
         });
     }
 
-    // --- ОТРИСОВКА ГИСТОГРАММЫ №2: ПОДРЯДЧИКИ [ОБЪЕКТ | ПОДРЯДЧИК] ---
+    // --- ОТРИСОВКА ГИСТОГРАММЫ №2: ПОДРЯДЧИКИ (Выявленные нарушения) ---
     const contrChartBody = document.getElementById('contractors-chart-body');
     contrChartBody.innerHTML = "";
 
@@ -317,7 +319,7 @@ function renderDoubleCharts(data) {
         });
     }
 
-    // --- ОТРИСОВКА ГИСТОГРАММЫ №3: ЗАКРЫТЫЕ ПРЕДПИСАНИЯ ПО ОБЪЕКТАМ ---
+    // --- ОТРИСОВКА ГИСТОГРАММЫ №3: ЗАКРЫТЫЕ НАРУШЕНИЯ ПО ОБЪЕКТАМ ---
     const closedObjChartBody = document.getElementById('closed-objects-chart-body');
     closedObjChartBody.innerHTML = "";
 
@@ -326,13 +328,12 @@ function renderDoubleCharts(data) {
     }).sort(function(a, b) { return b.count - a.count; });
 
     if (sortedClosedObjects.length === 0) {
-        closedObjChartBody.innerHTML = "<div style='text-align:center; color:#27ae60; font-weight:bold; padding:15px;'>Закрытых предписаний по объектам нет</div>";
+        closedObjChartBody.innerHTML = "<div style='text-align:center; color:#27ae60; font-weight:bold; padding:15px;'>Закрытых нарушений по объектам нет</div>";
     } else {
         let maxClosedObjCount = 0;
         sortedClosedObjects.forEach(function(item) { if(item.count > maxClosedObjCount) maxClosedObjCount = item.count; });
 
         sortedClosedObjects.forEach(function(item) {
-            // ИСПРАВЛЕНО: Используем короткое имя из карты
             let displayName = shortObjectsMap[item.name.toLowerCase()] || item.name;
 
             const percent = maxClosedObjCount > 0 ? (item.count / maxClosedObjCount) * 100 : 0;
@@ -347,7 +348,7 @@ function renderDoubleCharts(data) {
         });
     }
 
-    // --- ОТРИСОВКА ГИСТОГРАММЫ №4: ЗАКРЫТЫЕ ПРЕДПИСАНИЯ ПО ПОДРЯДЧИКАМ [ОБЪЕКТ | ПОДРЯДЧИК] ---
+    // --- ОТРИСОВКА ГИСТОГРАММЫ №4: ЗАКРЫТЫЕ НАРУШЕНИЯ ПО ПОДРЯДЧИКАМ ---
     const closedContrChartBody = document.getElementById('closed-contractors-chart-body');
     closedContrChartBody.innerHTML = "";
 
@@ -356,7 +357,7 @@ function renderDoubleCharts(data) {
     }).sort(function(a, b) { return b.count - a.count; });
 
     if (sortedClosedContractors.length === 0) {
-        closedContrChartBody.innerHTML = "<div style='text-align:center; color:#27ae60; font-weight:bold; padding:15px;'>Закрытых предписаний по подрядчикам нет</div>";
+        closedContrChartBody.innerHTML = "<div style='text-align:center; color:#27ae60; font-weight:bold; padding:15px;'>Закрытых нарушений по подрядчикам нет</div>";
     } else {
         let maxClosedContrCount = 0;
         sortedClosedContractors.forEach(function(item) { if(item.count > maxClosedContrCount) maxClosedContrCount = item.count; });
