@@ -26,16 +26,15 @@ function switchTab(tabId) {
 async function loadData() {
     const statusText = document.getElementById('sync-status');
     try {
-        // Шаг 1: Сначала подтягиваем справочник объектов, чтобы узнать короткие имена
+        // Шаг 1: Сначала подтягиваем справочник объектов, чтобы знать короткие имена
         const setupResponse = await fetch(apiPath("setup"), { method: "GET", redirect: "follow" });
         const setupRes = await setupResponse.json();
         
         if (setupRes && setupRes.success) {
-            // Очищаем карту перед заполнением
             shortObjectsMap = {};
             setupRes.objects.forEach(function(obj) {
-                // Запоминаем: связку name (полное название) -> id (короткое имя)
-                shortObjectsMap[obj.name] = obj.id;
+                // Запоминаем связку: полное имя (в нижнем регистре для надежности) -> короткое имя
+                shortObjectsMap[obj.name.toLowerCase()] = obj.id;
             });
         }
 
@@ -231,8 +230,10 @@ function renderDoubleCharts(data) {
         totalViolations += r.vCount;
         if (r.isClosed) totalClosed++;
 
-        // Вычисляем короткое имя объекта из справочника (Колонка А), если не нашли - пишем "Акт"
-        let shortPrefix = shortObjectsMap[r.object] || "Акт";
+        // ИСПРАВЛЕНО: Берем короткое имя прямо из ответа сервера (object_short_name).
+        // Если его нет (старые данные), пробуем найти по карте.
+        let shortPrefix = r.object_short_name || shortObjectsMap[r.object ? r.object.toLowerCase() : ""] || "Акт";
+        
         let uniqueContractorKey = "[" + shortPrefix + "] " + r.contractor;
 
         if (r.vCount > 0) {
@@ -274,8 +275,8 @@ function renderDoubleCharts(data) {
         sortedObjects.forEach(function(item) { if(item.count > maxObjCount) maxObjCount = item.count; });
         
         sortedObjects.forEach(function(item) {
-            // ИСПРАВЛЕНО: Используем короткое имя из карты, если оно есть
-            let displayName = shortObjectsMap[item.name] || item.name;
+            // ИСПРАВЛЕНО: Используем короткое имя из карты или берем из БД, если есть
+            let displayName = shortObjectsMap[item.name.toLowerCase()] || item.name;
             
             const percent = maxObjCount > 0 ? (item.count / maxObjCount) * 100 : 0;
             const row = document.createElement('div');
@@ -331,8 +332,8 @@ function renderDoubleCharts(data) {
         sortedClosedObjects.forEach(function(item) { if(item.count > maxClosedObjCount) maxClosedObjCount = item.count; });
 
         sortedClosedObjects.forEach(function(item) {
-            // ИСПРАВЛЕНО: Используем короткое имя из карты, если оно есть
-            let displayName = shortObjectsMap[item.name] || item.name;
+            // ИСПРАВЛЕНО: Используем короткое имя из карты
+            let displayName = shortObjectsMap[item.name.toLowerCase()] || item.name;
 
             const percent = maxClosedObjCount > 0 ? (item.count / maxClosedObjCount) * 100 : 0;
             const row = document.createElement('div');
