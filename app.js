@@ -933,7 +933,7 @@ function downloadChecklistPdf() {
       const pageDiv = document.createElement("div");
       pageDiv.className = "pdf-page-break";
       pageDiv.innerHTML =
-        '<div style="margin-top:20px; font-size:14px; font-weight:bold; color:#2c3e50; border-bottom:1px solid #2c3e50; padding-bottom:5px; text-transform:uppercase;">Приложение к Акту. Фотофиксация нарушений (Лист ' +
+        '<div style="margin-top:20px; font-size:14px; font-weight:bold; color:#2c3e50; border-bottom:1px solid #2c3e50; padding-bottom:5px; text-transform:uppercase;">Приложение к Акту-предписанию. Фотофиксация нарушений (Лист ' +
         (Math.floor(i / 4) + 1) +
         ")</div>";
       const grid = document.createElement("div");
